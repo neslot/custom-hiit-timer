@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HIIT TIMER</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div id="intro">
+        <button id="intro-settings-link" onclick="event.stopPropagation(); toggleSettings(true);">SETTINGS</button>
+        <div class="watch-face" onclick="startWorkout()" role="button" aria-label="Start workout" tabindex="0">
+            <div class="watch-brand">HIIT TIMER</div>
+            <div id="watch-time" class="watch-time">15:00</div>
+            <div class="watch-sub">Send it son.</div>
+            <div class="intro-actions">
+                <button id="intro-start" onclick="event.stopPropagation(); startWorkout();">START SESSION</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="bg-overlay"></div>
+    <div id="cooldown-overlay"></div>
+    <div id="progress-container"><div id="progress-bar"></div></div>
+    <div id="settings-wrap"><button id="btn-settings" onclick="toggleSettings()">SETTINGS</button></div>
+    <label id="voice-toggle-wrap"><input id="voice-toggle" type="checkbox">Mute Voice</label>
+    <div id="settings-panel" class="hidden">
+        <h3>Workout Settings</h3>
+        <div class="settings-grid">
+            <label>Warm Up (sec)<input id="set-warmup" type="number" min="0" step="5"></label>
+            <label>Cool Down (sec)<input id="set-cooldown" type="number" min="0" step="5"></label>
+            <label>Easy (sec)<input id="set-easy" type="number" min="1" step="1"></label>
+            <label>Steady (sec)<input id="set-steady" type="number" min="1" step="1"></label>
+            <label>Sprint (sec)<input id="set-sprint" type="number" min="1" step="1"></label>
+            <label>Rounds/Block<input id="set-rounds" type="number" min="1" step="1"></label>
+            <label>Blocks<input id="set-blocks" type="number" min="1" step="1"></label>
+        </div>
+        <div class="settings-actions">
+            <button onclick="toggleSettings(false)">Close</button>
+            <button onclick="applySettings()">Apply</button>
+        </div>
+    </div>
+    <div id="workout-log" class="hidden">
+        <div class="card">
+            <h3>Log This Session</h3>
+            <div class="log-grid">
+                <label>Calories
+                    <input id="log-calories" type="number" min="0" step="1" placeholder="e.g. 320">
+                </label>
+                <label>Avg HR
+                    <input id="log-avg-hr" type="number" min="0" step="1" placeholder="e.g. 154">
+                </label>
+            </div>
+            <div class="log-actions">
+                <button onclick="closeLogModal()">Skip</button>
+                <button onclick="saveWorkoutLog()">Save</button>
+            </div>
+            <div class="recent-logs">
+                <h4>Recent Sessions</h4>
+                <ul id="recent-logs-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <div id="phase">READY</div>
+    <div id="timer">15:00</div>
+    <div id="instruction">Turn up volume & Tap Start</div>
+
+    <div id="controls">
+        <button id="btn-start" onclick="startWorkout()">START SESSION</button>
+        <button id="btn-pause" onclick="togglePause()" class="hidden">PAUSE</button>
+        <button id="btn-restart" onclick="restartWorkout()" class="hidden" title="Restart">&#x21bb;</button>
+    </div>
+
+    <script src="./app.js"></script>
+</body>
+</html>
