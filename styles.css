@@ -112,6 +112,33 @@
             opacity: 0.75;
         }
 
+        .intro-user {
+            margin-top: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .intro-user label {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.82;
+        }
+
+        #intro-user-select {
+            min-width: 140px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.35);
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+            padding: 7px 12px;
+            font-size: 0.9rem;
+            text-align: center;
+            text-align-last: center;
+        }
+
         .intro-actions {
             margin-top: 10px;
             display: flex;
@@ -187,7 +214,7 @@
 
         #controls {
             position: fixed;
-            bottom: 50px;
+            bottom: calc(68px + env(safe-area-inset-bottom));
             display: flex;
             gap: 20px;
             z-index: 10;
@@ -340,16 +367,46 @@
             font-size: 0.85rem;
         }
 
-        .log-grid input {
-            width: 100%;
-            margin-top: 4px;
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.2);
+.log-grid input {
+    width: 100%;
+    margin-top: 4px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
             background: rgba(255,255,255,0.08);
             color: #fff;
-            padding: 8px;
-            box-sizing: border-box;
-        }
+    padding: 8px;
+    box-sizing: border-box;
+}
+
+#log-metrics {
+    margin-top: 10px;
+}
+
+.log-grid select {
+    width: 100%;
+    margin-top: 4px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    padding: 8px;
+    box-sizing: border-box;
+}
+
+#log-metrics .metric-only {
+    grid-column: span 2;
+}
+
+#btn-log {
+    background: rgba(255, 255, 255, 0.95);
+    color: #222;
+}
+
+#log-user-context {
+    margin: 0 0 10px;
+    font-size: 0.86rem;
+    opacity: 0.9;
+}
 
 .log-actions {
     margin-top: 12px;

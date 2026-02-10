@@ -130,8 +130,26 @@
         let isRunning = false;
         let isPaused = false;
         let voiceMuted = false;
+        let sessionLogged = false;
+        let selectedUser = "Toby";
         let totalTime = timeline.reduce((sum, step) => sum + step.time, 0);
         let elapsed = 0;
+        const USERS = ["Toby", "Anna"];
+
+        const instrumentMetrics = {
+            running: [
+                { key: "distanceKm", label: "Distance (km)", type: "number", min: "0", step: "0.01", placeholder: "e.g. 5.0" },
+                { key: "pace", label: "Avg Pace (min/km)", type: "text", placeholder: "e.g. 5:10", metricOnly: true }
+            ],
+            rowing: [
+                { key: "distanceM", label: "Distance (m)", type: "number", min: "0", step: "1", placeholder: "e.g. 1500" },
+                { key: "level", label: "Level (0-10)", type: "number", min: "0", max: "10", step: "1", placeholder: "0-10" }
+            ],
+            riding: [
+                { key: "distanceKm", label: "Distance (km)", type: "number", min: "0", step: "0.1", placeholder: "e.g. 16.4" },
+                { key: "level", label: "Resistance (0-10)", type: "number", min: "0", max: "10", step: "1", placeholder: "0-10" }
+            ]
+        };
 
         const ui = {
             body: document.body,
@@ -143,20 +161,48 @@
             instr: document.getElementById('instruction'),
             startBtn: document.getElementById('btn-start'),
             pauseBtn: document.getElementById('btn-pause'),
+            logBtn: document.getElementById('btn-log'),
             restartBtn: document.getElementById('btn-restart'),
             progress: document.getElementById('progress-bar'),
             voiceToggle: document.getElementById('voice-toggle'),
             introVoiceBtn: document.getElementById('intro-voice-link'),
             settingsWrap: document.getElementById('settings-wrap'),
             settingsPanel: document.getElementById('settings-panel'),
-            watchTime: document.getElementById('watch-time')
+            watchTime: document.getElementById('watch-time'),
+            introUserSelect: document.getElementById('intro-user-select')
         };
         const logUi = {
             modal: document.getElementById('workout-log'),
+            instrument: document.getElementById('log-instrument'),
             calories: document.getElementById('log-calories'),
             avgHr: document.getElementById('log-avg-hr'),
+            metricsWrap: document.getElementById('log-metrics'),
+            userContext: document.getElementById('log-user-context'),
             list: document.getElementById('recent-logs-list')
         };
+
+        function isCooldownStep(step) {
+            return step && step.phase === "COOL DOWN";
+        }
+
+        function updateLogButtonVisibility(currentStep = timeline[currentIndex]) {
+            const shouldShow = isCooldownStep(currentStep) && (isRunning || isPaused);
+            ui.logBtn.classList.toggle('hidden', !shouldShow);
+        }
+
+        function sanitizeUser(user) {
+            return USERS.includes(user) ? user : USERS[0];
+        }
+
+        function syncUserUi() {
+            selectedUser = sanitizeUser(selectedUser);
+            if (ui.introUserSelect) {
+                ui.introUserSelect.value = selectedUser;
+            }
+            if (logUi.userContext) {
+                logUi.userContext.innerText = `User: ${selectedUser}`;
+            }
+        }
 
         function hexToRgb(hex) {
             const c = hex.replace('#', '');
@@ -178,16 +224,16 @@
             const currentStep = timeline[currentIndex];
             
             // Color Handling
-            ui.body.classList.toggle('cooldown', currentStep.phase === "COOL DOWN");
-            if (currentStep.phase === "EASY" && timeLeft <= 3 && timeLeft > 0) {
+            ui.body.classList.toggle('cooldown', isCooldownStep(currentStep));
+            if (currentStep.phase === "EASY" && timeLeft <= 3 && timeLeft >= 0) {
                 // Fade easy into neutral gray in last 3 seconds.
-                const ratio = (3 - timeLeft + 1) / 3;
+                const ratio = Math.min(1, Math.max(0, (3 - timeLeft) / 3));
                 ui.body.style.backgroundColor = mixHexColor(currentStep.color, "#808080", ratio);
-            } else if (currentStep.phase !== "COOL DOWN") {
+            } else if (!isCooldownStep(currentStep)) {
                 ui.body.style.backgroundColor = currentStep.color;
             }
             ui.overlay.style.opacity = currentStep.overlay; // Triggers the warm gradient fade
-            ui.cooldownOverlay.style.opacity = currentStep.phase === "COOL DOWN" ? 1 : 0;
+            ui.cooldownOverlay.style.opacity = isCooldownStep(currentStep) ? 1 : 0;
             
             ui.phase.innerText = currentStep.phase;
             ui.instr.innerText = currentStep.instr;
@@ -197,6 +243,41 @@
             // Progress Bar
             let pct = (elapsed / totalTime) * 100;
             ui.progress.style.width = `${pct}%`;
+            updateLogButtonVisibility(currentStep);
+        }
+
+        function runTimerTick() {
+            elapsed++;
+            timeLeft--;
+
+            // Countdown logic (Last 3 seconds)
+            if (timeLeft > 0 && timeLeft <= 3) {
+                playCountdownClick();
+            }
+
+            if (timeLeft < 0) {
+                // Phase Switch
+                currentIndex++;
+                if (currentIndex >= timeline.length) {
+                    endWorkout();
+                    return;
+                }
+
+                const nextStep = timeline[currentIndex];
+                timeLeft = nextStep.time;
+
+                // Audio Cues
+                playChime('high');
+                speak(nextStep.speech);
+
+                updateUI();
+            } else {
+                updateUI();
+            }
+        }
+
+        function startTimerLoop() {
+            timerInterval = setInterval(runTimerTick, 1000);
         }
 
         function startWorkout() {
@@ -214,41 +295,13 @@
             ui.pauseBtn.classList.remove('hidden');
             ui.restartBtn.classList.remove('hidden');
             ui.pauseBtn.innerText = "PAUSE";
+            sessionLogged = false;
             ui.intro.classList.add('hidden');
             
             // Initial Announce
             speak(timeline[0].speech);
             updateUI();
-
-            timerInterval = setInterval(() => {
-                elapsed++;
-                timeLeft--;
-
-                // Countdown logic (Last 3 seconds)
-                if (timeLeft > 0 && timeLeft <= 3) {
-                    playCountdownClick(); 
-                }
-
-                if (timeLeft < 0) {
-                    // Phase Switch
-                    currentIndex++;
-                    if (currentIndex >= timeline.length) {
-                        endWorkout();
-                        return;
-                    }
-                    
-                    const nextStep = timeline[currentIndex];
-                    timeLeft = nextStep.time;
-                    
-                    // Audio Cues
-                    playChime('high');
-                    speak(nextStep.speech);
-                    
-                    updateUI();
-                } else {
-                    updateUI();
-                }
-            }, 1000);
+            startTimerLoop();
         }
 
         function endWorkout() {
@@ -259,11 +312,14 @@
             ui.phase.innerText = "DONE";
             ui.timer.innerText = "0:00";
             ui.pauseBtn.classList.add('hidden');
+            ui.logBtn.classList.add('hidden');
             ui.restartBtn.classList.remove('hidden');
             ui.startBtn.classList.remove('hidden');
             ui.startBtn.innerText = "START AGAIN";
             ui.settingsWrap.classList.remove('hidden');
-            showLogModal();
+            if (!sessionLogged) {
+                showLogModal();
+            }
         }
 
         function togglePause() {
@@ -276,30 +332,7 @@
             } else {
                 ui.pauseBtn.innerText = "PAUSE";
                 speak("Resumed.");
-                timerInterval = setInterval(() => {
-                    elapsed++;
-                    timeLeft--;
-
-                    if (timeLeft > 0 && timeLeft <= 3) {
-                        playCountdownClick();
-                    }
-
-                    if (timeLeft < 0) {
-                        currentIndex++;
-                        if (currentIndex >= timeline.length) {
-                            endWorkout();
-                            return;
-                        }
-
-                        const nextStep = timeline[currentIndex];
-                        timeLeft = nextStep.time;
-                        playChime('high');
-                        speak(nextStep.speech);
-                        updateUI();
-                    } else {
-                        updateUI();
-                    }
-                }, 1000);
+                startTimerLoop();
             }
         }
 
@@ -310,10 +343,12 @@
             currentIndex = 0;
             timeLeft = timeline[0].time;
             elapsed = 0;
+            sessionLogged = false;
             if (window.speechSynthesis) window.speechSynthesis.cancel();
             ui.startBtn.classList.remove('hidden');
             ui.startBtn.innerText = "START SESSION";
             ui.pauseBtn.classList.add('hidden');
+            ui.logBtn.classList.add('hidden');
             ui.restartBtn.classList.add('hidden');
             ui.settingsWrap.classList.remove('hidden');
             ui.body.style.backgroundColor = "#1a1a1a";
@@ -354,8 +389,11 @@
 
         function showLogModal() {
             logUi.modal.classList.remove('hidden');
+            logUi.instrument.value = "running";
             logUi.calories.value = "";
             logUi.avgHr.value = "";
+            syncUserUi();
+            renderLogMetrics(logUi.instrument.value);
             fetchLogs().then(renderLogs);
         }
 
@@ -386,17 +424,98 @@
             logs.slice(0, 10).forEach((entry) => {
                 const li = document.createElement("li");
                 const date = new Date(entry.date).toLocaleDateString();
-                li.innerText = `${date} - ${entry.calories || 0} cal - ${entry.avgHr || 0} avg HR`;
+                const user = sanitizeUser(entry.user || USERS[0]);
+                const instrument = (entry.instrument || "riding").toLowerCase();
+                const metricSummary = formatMetricSummary(instrument, entry.metrics || {});
+                li.innerText = `${date} - ${user} - ${capitalize(instrument)} - ${entry.calories || 0} cal - ${entry.avgHr || 0} avg HR${metricSummary ? ` - ${metricSummary}` : ""}`;
                 logUi.list.appendChild(li);
             });
         }
 
+        function capitalize(value) {
+            if (!value) return "";
+            return value.charAt(0).toUpperCase() + value.slice(1);
+        }
+
+        function formatMetricSummary(instrument, metrics) {
+            if (!metrics || typeof metrics !== "object") return "";
+            if (instrument === "running") {
+                const parts = [];
+                if (metrics.distanceKm !== undefined && metrics.distanceKm !== null && metrics.distanceKm !== "") parts.push(`${metrics.distanceKm} km`);
+                if (metrics.pace) parts.push(`${metrics.pace} min/km`);
+                return parts.join(", ");
+            }
+            if (instrument === "rowing") {
+                const parts = [];
+                if (metrics.distanceM !== undefined && metrics.distanceM !== null && metrics.distanceM !== "") parts.push(`${metrics.distanceM} m`);
+                if (metrics.level !== undefined && metrics.level !== null && metrics.level !== "") parts.push(`L${metrics.level}`);
+                return parts.join(", ");
+            }
+            if (instrument === "riding") {
+                const parts = [];
+                if (metrics.distanceKm !== undefined && metrics.distanceKm !== null && metrics.distanceKm !== "") parts.push(`${metrics.distanceKm} km`);
+                if (metrics.level !== undefined && metrics.level !== null && metrics.level !== "") parts.push(`R${metrics.level}`);
+                return parts.join(", ");
+            }
+            return "";
+        }
+
+        function renderLogMetrics(instrument, values = {}) {
+            const fields = instrumentMetrics[instrument] || [];
+            logUi.metricsWrap.innerHTML = "";
+
+            fields.forEach((field) => {
+                const label = document.createElement("label");
+                label.innerText = field.label;
+                if (field.metricOnly) label.classList.add("metric-only");
+
+                const input = document.createElement("input");
+                input.type = field.type;
+                input.dataset.metricKey = field.key;
+                if (field.placeholder) input.placeholder = field.placeholder;
+                if (field.min !== undefined) input.min = field.min;
+                if (field.max !== undefined) input.max = field.max;
+                if (field.step !== undefined) input.step = field.step;
+                if (values[field.key] !== undefined && values[field.key] !== null) {
+                    input.value = values[field.key];
+                }
+
+                label.appendChild(input);
+                logUi.metricsWrap.appendChild(label);
+            });
+        }
+
+        function collectLogMetrics() {
+            const data = {};
+            const inputs = logUi.metricsWrap.querySelectorAll("input[data-metric-key]");
+            inputs.forEach((input) => {
+                const key = input.dataset.metricKey;
+                if (!key) return;
+                const raw = input.value.trim();
+                if (raw === "") {
+                    data[key] = null;
+                    return;
+                }
+                if (input.type === "number") {
+                    const n = Number(raw);
+                    data[key] = Number.isFinite(n) ? n : null;
+                } else {
+                    data[key] = raw;
+                }
+            });
+            return data;
+        }
+
         async function saveWorkoutLog() {
+            const instrument = (logUi.instrument.value || "running").toLowerCase();
             const entry = {
                 date: new Date().toISOString(),
                 durationSec: elapsed,
+                user: sanitizeUser(selectedUser),
+                instrument,
                 calories: parseInt(logUi.calories.value || "0", 10),
-                avgHr: parseInt(logUi.avgHr.value || "0", 10)
+                avgHr: parseInt(logUi.avgHr.value || "0", 10),
+                metrics: collectLogMetrics()
             };
             try {
                 const res = await fetch(`${API_BASE}/api/logs`, {
@@ -410,6 +529,7 @@
                 alert("Could not save log. Make sure server is running.");
                 return;
             }
+            sessionLogged = true;
             renderLogs(await fetchLogs());
             closeLogModal();
         }
@@ -450,7 +570,18 @@
             syncVoiceUi();
         });
 
+        logUi.instrument.addEventListener('change', (e) => {
+            renderLogMetrics(e.target.value);
+        });
+
+        ui.introUserSelect.addEventListener('change', (e) => {
+            selectedUser = sanitizeUser(e.target.value);
+            syncUserUi();
+        });
+
         document.querySelector('.watch-face').addEventListener('keydown', (e) => {
+            const targetTag = (e.target && e.target.tagName ? e.target.tagName.toLowerCase() : "");
+            if (targetTag === 'select' || targetTag === 'input' || targetTag === 'button') return;
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 startWorkout();
@@ -461,4 +592,7 @@
         ui.timer.innerText = formatClock(totalTime);
         refreshSettingsInputs();
         syncVoiceUi();
+        syncUserUi();
+        renderLogMetrics(logUi.instrument.value || "running");
+        updateLogButtonVisibility();
         fetchLogs().then(renderLogs);

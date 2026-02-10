@@ -17,6 +17,13 @@
             <div class="watch-brand">HIIT TIMER</div>
             <div id="watch-time" class="watch-time">15:00</div>
             <div class="watch-sub">Send it son.</div>
+            <div class="intro-user" onclick="event.stopPropagation();">
+                <label for="intro-user-select">Select user</label>
+                <select id="intro-user-select" onclick="event.stopPropagation();">
+                    <option value="Toby">Toby</option>
+                    <option value="Anna">Anna</option>
+                </select>
+            </div>
             <div class="intro-actions">
                 <button id="intro-start" onclick="event.stopPropagation(); startWorkout();">START SESSION</button>
             </div>
@@ -47,7 +54,15 @@
     <div id="workout-log" class="hidden">
         <div class="card">
             <h3>Log This Session</h3>
+            <p id="log-user-context">User: Toby</p>
             <div class="log-grid">
+                <label>Instrument
+                    <select id="log-instrument">
+                        <option value="running">Running</option>
+                        <option value="rowing">Rowing</option>
+                        <option value="riding">Riding</option>
+                    </select>
+                </label>
                 <label>Calories
                     <input id="log-calories" type="number" min="0" step="1" placeholder="e.g. 320">
                 </label>
@@ -55,6 +70,7 @@
                     <input id="log-avg-hr" type="number" min="0" step="1" placeholder="e.g. 154">
                 </label>
             </div>
+            <div id="log-metrics" class="log-grid"></div>
             <div class="log-actions">
                 <button onclick="closeLogModal()">Skip</button>
                 <button onclick="saveWorkoutLog()">Save</button>
@@ -73,6 +89,7 @@
     <div id="controls">
         <button id="btn-start" onclick="startWorkout()">START SESSION</button>
         <button id="btn-pause" onclick="togglePause()" class="hidden">PAUSE</button>
+        <button id="btn-log" onclick="showLogModal()" class="hidden">LOG</button>
         <button id="btn-restart" onclick="restartWorkout()" class="hidden" title="Restart">&#x21bb;</button>
     </div>
 
