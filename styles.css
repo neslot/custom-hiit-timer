@@ -48,10 +48,10 @@
             pointer-events: none;
         }
 
-        #intro-settings-link {
-            position: absolute;
-            top: 18px;
-            right: 18px;
+#intro-settings-link {
+    position: absolute;
+    top: 18px;
+    right: 18px;
             z-index: 24;
             padding: 7px 12px;
             border-radius: 999px;
@@ -59,8 +59,22 @@
             background: rgba(0,0,0,0.28);
             color: #fff;
             font-size: 0.8rem;
-            letter-spacing: 0.4px;
-        }
+    letter-spacing: 0.4px;
+}
+
+#intro-voice-link {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    z-index: 24;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.35);
+    background: rgba(0,0,0,0.28);
+    color: #fff;
+    font-size: 0.8rem;
+    letter-spacing: 0.4px;
+}
 
         .watch-face {
             width: min(72vw, 360px);

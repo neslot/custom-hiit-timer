@@ -146,6 +146,7 @@
             restartBtn: document.getElementById('btn-restart'),
             progress: document.getElementById('progress-bar'),
             voiceToggle: document.getElementById('voice-toggle'),
+            introVoiceBtn: document.getElementById('intro-voice-link'),
             settingsWrap: document.getElementById('settings-wrap'),
             settingsPanel: document.getElementById('settings-panel'),
             watchTime: document.getElementById('watch-time')
@@ -336,6 +337,21 @@
             ui.settingsPanel.classList.toggle('hidden', !shouldOpen);
         }
 
+        function syncVoiceUi() {
+            ui.voiceToggle.checked = voiceMuted;
+            if (ui.introVoiceBtn) {
+                ui.introVoiceBtn.innerText = voiceMuted ? "VOICE: OFF" : "VOICE: ON";
+            }
+        }
+
+        function toggleVoiceMute() {
+            voiceMuted = !voiceMuted;
+            if (voiceMuted && window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+            syncVoiceUi();
+        }
+
         function showLogModal() {
             logUi.modal.classList.remove('hidden');
             logUi.calories.value = "";
@@ -431,6 +447,7 @@
             if (voiceMuted && window.speechSynthesis) {
                 window.speechSynthesis.cancel();
             }
+            syncVoiceUi();
         });
 
         document.querySelector('.watch-face').addEventListener('keydown', (e) => {
@@ -443,4 +460,5 @@
         ui.watchTime.innerText = formatClock(totalTime);
         ui.timer.innerText = formatClock(totalTime);
         refreshSettingsInputs();
+        syncVoiceUi();
         fetchLogs().then(renderLogs);
