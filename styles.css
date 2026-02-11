@@ -471,6 +471,141 @@ button:focus-visible {
     font-weight: 700;
 }
 
+body.home-v2 #intro {
+    background: linear-gradient(155deg, rgba(25, 10, 52, 0.96), rgba(10, 16, 41, 0.97));
+}
+
+body.home-v2 .watch-face {
+    border-radius: 34px;
+    background: linear-gradient(145deg, rgba(89, 74, 166, 0.95), rgba(43, 42, 116, 0.95) 55%, rgba(16, 24, 53, 0.97));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -18px 30px rgba(9, 7, 25, 0.44), 0 24px 44px rgba(14, 8, 31, 0.5);
+}
+
+body.home-v2 .watch-face::before {
+    inset: 10px;
+    border-radius: 24px;
+}
+
+body.home-v2 .home-stats {
+    background: rgba(15, 18, 43, 0.92);
+    border-color: rgba(186, 159, 255, 0.26);
+}
+
+body.home-v2 .watch-methodology {
+    border-color: rgba(201, 184, 255, 0.4);
+    background: rgba(145, 115, 241, 0.24);
+}
+
+body.home-v2 .range-tab.active {
+    color: #1a1330;
+    background: linear-gradient(145deg, #ffc0df, #9f8cff);
+    box-shadow: 0 6px 16px rgba(140, 115, 224, 0.42);
+}
+
+body.home-v2 #intro .pill-btn.primary {
+    background: linear-gradient(145deg, #ffc2de, #9f8eff);
+    color: #211239;
+}
+
+body.home-v3 #intro {
+    background: linear-gradient(160deg, rgba(6, 12, 31, 0.96), rgba(7, 19, 43, 0.97));
+}
+
+body.home-v3 .watch-face {
+    border-color: rgba(129, 211, 255, 0.34);
+    background: linear-gradient(150deg, rgba(24, 82, 130, 0.92), rgba(13, 38, 77, 0.95) 55%, rgba(7, 19, 42, 0.98));
+    box-shadow: inset 0 1px 0 rgba(182, 228, 255, 0.28), inset 0 -18px 24px rgba(4, 10, 25, 0.45), 0 22px 40px rgba(1, 16, 35, 0.55);
+}
+
+body.home-v3 .watch-methodology {
+    border-color: rgba(131, 219, 255, 0.42);
+    background: rgba(80, 162, 221, 0.28);
+}
+
+body.home-v3 .home-stats {
+    background: rgba(6, 16, 34, 0.9);
+    border-color: rgba(126, 211, 255, 0.26);
+}
+
+body.home-v3 .range-tabs {
+    border-color: rgba(117, 219, 255, 0.28);
+    background: linear-gradient(145deg, rgba(10, 40, 68, 0.62), rgba(18, 21, 50, 0.56));
+}
+
+body.home-v3 .range-tab.active {
+    color: #06172c;
+    background: linear-gradient(145deg, #85d8ff, #8b92ff);
+    box-shadow: 0 7px 14px rgba(91, 151, 221, 0.34);
+}
+
+body.home-v3 #intro .pill-btn.primary {
+    background: linear-gradient(145deg, #82d4ff, #8c8dff);
+    color: #09192f;
+}
+
+body.start-s2 #phase {
+    letter-spacing: 3.1px;
+    text-shadow: 0 7px 22px rgba(12, 8, 33, 0.42);
+}
+
+body.start-s2 #timer {
+    font-size: clamp(4.2rem, 22.5vw, 13.2rem);
+    text-shadow: 0 8px 22px rgba(14, 7, 34, 0.5);
+}
+
+body.start-s2 #instruction {
+    color: rgba(228, 236, 255, 0.8);
+    letter-spacing: 0.35px;
+}
+
+body.start-s2 #controls {
+    background: linear-gradient(115deg, rgba(24, 10, 47, 0.82), rgba(7, 18, 40, 0.82));
+    border-color: rgba(172, 142, 255, 0.34);
+    box-shadow: 0 14px 34px rgba(17, 7, 35, 0.4);
+}
+
+body.start-s2 #progress-bar {
+    background: linear-gradient(90deg, #af86ff, #7ad5ff);
+}
+
+body.start-s2 #voice-toggle-wrap {
+    border-color: rgba(171, 143, 255, 0.34);
+    background: rgba(17, 10, 39, 0.74);
+}
+
+body.start-s3 #phase {
+    letter-spacing: 1.3px;
+    text-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+body.start-s3 #timer {
+    font-size: clamp(3.9rem, 20.7vw, 12.8rem);
+    text-shadow: 0 6px 16px rgba(0, 0, 0, 0.36);
+}
+
+body.start-s3 #controls {
+    background: rgba(3, 14, 32, 0.74);
+    border-color: rgba(107, 206, 255, 0.28);
+}
+
+body.start-s3 #progress-bar {
+    background: linear-gradient(90deg, #72f0bf, #70b6ff);
+}
+
+body.start-s3 #voice-toggle-wrap {
+    background: rgba(5, 18, 33, 0.78);
+    border-color: rgba(117, 219, 255, 0.3);
+}
+
+body.start-s3.is-workout::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    background: radial-gradient(circle at 20% 16%, rgba(145, 210, 255, 0.18), rgba(0, 0, 0, 0) 52%);
+}
+
 #bg-overlay,
 #cooldown-overlay {
     position: fixed;

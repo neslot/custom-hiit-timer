@@ -119,6 +119,9 @@ const METHODOLOGIES = {
     }
 };
 
+const HOME_VARIANTS = ['v1', 'v2', 'v3'];
+const START_VARIANTS = ['s1', 's2', 's3'];
+
 const PHASE_THEME = {
     warmup: {
         color: "#263665",
@@ -199,6 +202,8 @@ let toastTimer = null;
 let connectionAlerted = false;
 let sessionProtocolId = currentMethodologyId;
 let sessionProtocolLabel = METHODOLOGIES[currentMethodologyId].name;
+let homeVariant = 'v1';
+let startVariant = 's1';
 
 const statsState = {
     user: selectedUser,
@@ -300,7 +305,9 @@ function persistPreferences() {
             homeRange,
             workoutSettings,
             currentMethodologyId,
-            statsState
+            statsState,
+            homeVariant,
+            startVariant
         };
         localStorage.setItem(PREFS_KEY, JSON.stringify(payload));
     } catch {
@@ -327,6 +334,8 @@ function loadPreferences() {
             statsState.equipment = parsed.statsState.equipment || 'all';
             statsState.protocol = parsed.statsState.protocol || 'all';
         }
+        homeVariant = sanitizeHomeVariant(parsed.homeVariant);
+        startVariant = sanitizeStartVariant(parsed.startVariant);
     } catch {
         // Ignore malformed preference payloads.
     }
@@ -356,6 +365,88 @@ function sanitizeProtocol(value) {
     if (METHODOLOGIES[normalized]) return normalized;
     if (normalized === 'custom') return 'custom';
     return 'unknown';
+}
+
+function sanitizeHomeVariant(value) {
+    const normalized = String(value || '').toLowerCase();
+    return HOME_VARIANTS.includes(normalized) ? normalized : 'v1';
+}
+
+function sanitizeStartVariant(value) {
+    const normalized = String(value || '').toLowerCase();
+    return START_VARIANTS.includes(normalized) ? normalized : 's1';
+}
+
+function collectVariantTokens() {
+    const tokens = [];
+    const pathSegments = window.location.pathname.split('/').filter(Boolean);
+    pathSegments.forEach((segment) => tokens.push(segment.toLowerCase()));
+
+    const hash = window.location.hash.replace(/^#/, '');
+    if (hash) {
+        hash
+            .split(/[\/|,]+/)
+            .map((segment) => segment.trim().toLowerCase())
+            .filter(Boolean)
+            .forEach((segment) => tokens.push(segment));
+    }
+    return tokens;
+}
+
+function readVariantsFromLocation() {
+    const result = {};
+    const tokens = collectVariantTokens();
+
+    tokens.forEach((token) => {
+        if (/^v[1-3]$/.test(token)) {
+            result.home = token;
+        }
+        if (/^s[1-3]$/.test(token)) {
+            result.start = token;
+        }
+    });
+
+    return result;
+}
+
+function applyVisualVariants() {
+    HOME_VARIANTS.forEach((id) => ui.body.classList.remove(`home-${id}`));
+    START_VARIANTS.forEach((id) => ui.body.classList.remove(`start-${id}`));
+    ui.body.classList.add(`home-${homeVariant}`);
+    ui.body.classList.add(`start-${startVariant}`);
+}
+
+function syncVariantsFromLocation(options = {}) {
+    const announce = options.announce !== false;
+    const parsed = readVariantsFromLocation();
+    let changed = false;
+
+    if (parsed.home) {
+        const nextHome = sanitizeHomeVariant(parsed.home);
+        if (nextHome !== homeVariant) {
+            homeVariant = nextHome;
+            changed = true;
+        }
+    }
+
+    if (parsed.start) {
+        const nextStart = sanitizeStartVariant(parsed.start);
+        if (nextStart !== startVariant) {
+            startVariant = nextStart;
+            changed = true;
+        }
+    }
+
+    applyVisualVariants();
+    if (changed && announce) {
+        persistPreferences();
+        showToast(`Style ${homeVariant.toUpperCase()} / ${startVariant.toUpperCase()}`);
+        return;
+    }
+
+    if (changed) {
+        persistPreferences();
+    }
 }
 
 function getProtocolLabel(protocolId, fallbackLabel) {
@@ -1636,7 +1727,17 @@ window.addEventListener('resize', () => {
     }
 });
 
+window.addEventListener('hashchange', () => {
+    syncVariantsFromLocation({ announce: true });
+});
+
+window.addEventListener('popstate', () => {
+    syncVariantsFromLocation({ announce: true });
+});
+
 loadPreferences();
+applyVisualVariants();
+syncVariantsFromLocation({ announce: false });
 statsState.user = sanitizeUser(statsState.user || selectedUser);
 timeline = buildTimeline(workoutSettings);
 totalTime = timeline.reduce((sum, step) => sum + step.time, 0);
