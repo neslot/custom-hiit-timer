@@ -6,61 +6,94 @@
     <title>HIIT TIMER</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Sora:wght@500;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+    <div class="ambient ambient-three"></div>
+
     <div id="intro">
-        <button id="intro-voice-link" onclick="event.stopPropagation(); toggleVoiceMute();">VOICE: ON</button>
-        <button id="intro-settings-link" onclick="event.stopPropagation(); toggleSettings(true);">SETTINGS</button>
-        <div class="watch-face" onclick="startWorkout()" role="button" aria-label="Start workout" tabindex="0">
-            <div class="watch-brand">HIIT TIMER</div>
-            <div id="watch-time" class="watch-time">15:00</div>
-            <div class="watch-sub">Send it son.</div>
-            <div class="intro-user" onclick="event.stopPropagation();">
-                <label for="intro-user-select">Select user</label>
-                <select id="intro-user-select" onclick="event.stopPropagation();">
-                    <option value="Toby">Toby</option>
-                    <option value="Anna">Anna</option>
-                </select>
-            </div>
-            <div class="intro-actions">
-                <button id="intro-start" onclick="event.stopPropagation(); startWorkout();">START SESSION</button>
-            </div>
+        <header class="intro-topbar">
+            <button id="intro-voice-link" class="pill-btn secondary" onclick="event.stopPropagation(); toggleVoiceMute();">VOICE: ON</button>
+            <button id="intro-settings-link" class="pill-btn secondary" onclick="event.stopPropagation(); toggleSettings(true);">SETTINGS</button>
+        </header>
+
+        <div class="intro-layout">
+            <section class="watch-shell" onclick="startWorkout()" role="button" aria-label="Start workout" tabindex="0">
+                <div class="watch-crown" aria-hidden="true"></div>
+                <div class="watch-face">
+                    <div class="watch-brand">HIIT TIMER</div>
+                    <div id="watch-time" class="watch-time">15:00</div>
+                    <div id="watch-methodology" class="watch-methodology">University of Copenhagen</div>
+                    <div class="watch-sub">Hit start and send it.</div>
+
+                    <div class="intro-user" onclick="event.stopPropagation();">
+                        <label for="intro-user-select">Select User</label>
+                        <select id="intro-user-select" onclick="event.stopPropagation();">
+                            <option value="Toby">Toby</option>
+                            <option value="Anna">Anna</option>
+                        </select>
+                    </div>
+
+                    <div class="intro-actions">
+                        <button id="intro-start" class="pill-btn primary" onclick="event.stopPropagation(); startWorkout();">START SESSION</button>
+                    </div>
+                </div>
+            </section>
+
+            <aside class="home-stats">
+                <div class="home-stats-head">
+                    <h3>Last Performances</h3>
+                    <span id="home-stats-user">Toby</span>
+                </div>
+                <div id="home-stat-kpis" class="home-kpis"></div>
+                <ul id="home-performances-list" class="home-list"></ul>
+            </aside>
         </div>
     </div>
 
     <div id="bg-overlay"></div>
     <div id="cooldown-overlay"></div>
     <div id="progress-container"><div id="progress-bar"></div></div>
-    <div id="settings-wrap"><button id="btn-settings" onclick="toggleSettings()">SETTINGS</button></div>
-    <label id="voice-toggle-wrap"><input id="voice-toggle" type="checkbox">Mute Voice</label>
+
+    <div id="settings-wrap"><button id="btn-settings" class="pill-btn secondary" onclick="toggleSettings()">SETTINGS</button></div>
+    <label id="voice-toggle-wrap" class="hidden"><input id="voice-toggle" type="checkbox">Mute Voice</label>
+
     <div id="settings-panel" class="hidden">
         <h3>Workout Settings</h3>
+        <p id="methodology-note">Methodology: University of Copenhagen</p>
+
+        <div id="methodology-grid" class="methodology-grid"></div>
+
         <div class="settings-grid">
             <label>Warm Up (sec)<input id="set-warmup" type="number" min="0" step="5"></label>
             <label>Cool Down (sec)<input id="set-cooldown" type="number" min="0" step="5"></label>
             <label>Easy (sec)<input id="set-easy" type="number" min="1" step="1"></label>
             <label>Steady (sec)<input id="set-steady" type="number" min="1" step="1"></label>
             <label>Sprint (sec)<input id="set-sprint" type="number" min="1" step="1"></label>
-            <label>Rounds/Block<input id="set-rounds" type="number" min="1" step="1"></label>
+            <label>Rounds / Block<input id="set-rounds" type="number" min="1" step="1"></label>
             <label>Blocks<input id="set-blocks" type="number" min="1" step="1"></label>
         </div>
+
         <div class="settings-actions">
-            <button onclick="toggleSettings(false)">Close</button>
-            <button onclick="applySettings()">Apply</button>
+            <button class="pill-btn ghost" onclick="toggleSettings(false)">Close</button>
+            <button class="pill-btn primary" onclick="applySettings()">Apply</button>
         </div>
     </div>
+
     <div id="workout-log" class="hidden">
         <div class="card">
             <h3>Log This Session</h3>
             <p id="log-user-context">User: Toby</p>
             <div class="log-grid">
-                <label>Instrument
+                <label>Equipment
                     <select id="log-instrument">
                         <option value="running">Running</option>
                         <option value="rowing">Rowing</option>
                         <option value="riding">Riding</option>
+                        <option value="spin">Spin</option>
                     </select>
                 </label>
                 <label>Calories
@@ -72,8 +105,8 @@
             </div>
             <div id="log-metrics" class="log-grid"></div>
             <div class="log-actions">
-                <button onclick="closeLogModal()">Skip</button>
-                <button onclick="saveWorkoutLog()">Save</button>
+                <button class="pill-btn ghost" onclick="closeLogModal()">Skip</button>
+                <button class="pill-btn primary" onclick="saveWorkoutLog()">Save</button>
             </div>
             <div class="recent-logs">
                 <h4>Recent Sessions</h4>
@@ -84,13 +117,13 @@
 
     <div id="phase">READY</div>
     <div id="timer">15:00</div>
-    <div id="instruction">Turn up volume & Tap Start</div>
+    <div id="instruction">Turn up volume and tap start.</div>
 
     <div id="controls">
-        <button id="btn-start" onclick="startWorkout()">START SESSION</button>
-        <button id="btn-pause" onclick="togglePause()" class="hidden">PAUSE</button>
-        <button id="btn-log" onclick="showLogModal()" class="hidden">LOG</button>
-        <button id="btn-restart" onclick="restartWorkout()" class="hidden" title="Restart">&#x21bb;</button>
+        <button id="btn-start" class="pill-btn primary" onclick="startWorkout()">START SESSION</button>
+        <button id="btn-pause" class="pill-btn secondary hidden" onclick="togglePause()">PAUSE</button>
+        <button id="btn-log" class="pill-btn accent hidden" onclick="showLogModal()">LOG</button>
+        <button id="btn-restart" class="round-btn hidden" onclick="restartWorkout()" title="Restart">&#x21bb;</button>
     </div>
 
     <script src="./app.js"></script>
