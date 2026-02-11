@@ -52,13 +52,10 @@
 
             <aside class="home-stats">
                 <div class="home-stats-head">
-                    <div class="home-stats-title">
-                        <h3>Last Performances</h3>
-                        <button type="button" class="pill-btn ghost home-log-btn" onclick="openCustomLog()">Custom Log</button>
-                    </div>
+                    <h3>Last Performances</h3>
                     <div class="home-stats-meta">
                         <span id="home-stats-user">Toby</span>
-                        <span id="storage-badge" class="storage-badge">Storage: local</span>
+                        <button id="storage-badge" type="button" class="storage-badge manual-log-btn" onclick="openCustomLog()">Manual Log</button>
                     </div>
                 </div>
                 <div id="home-range-tabs" class="range-tabs">
@@ -85,25 +82,30 @@
     <label id="voice-toggle-wrap" class="hidden"><input id="voice-toggle" type="checkbox">Mute Voice</label>
 
     <div id="settings-panel" class="hidden">
-        <h3>Workout Settings</h3>
-        <p id="methodology-note">Methodology: University of Copenhagen</p>
+        <div class="settings-inner">
+            <header class="settings-header">
+                <h3>Workout Settings</h3>
+                <button type="button" class="pill-btn ghost settings-back-btn" onclick="toggleSettings(false)">Back</button>
+            </header>
+            <p id="methodology-note">Methodology: University of Copenhagen</p>
 
-        <div id="methodology-grid" class="methodology-grid"></div>
+            <div id="methodology-grid" class="methodology-grid"></div>
 
-        <div class="settings-grid">
-            <label>Warm Up (sec)<input id="set-warmup" type="number" min="0" step="5"></label>
-            <label>Cool Down (sec)<input id="set-cooldown" type="number" min="0" step="5"></label>
-            <label>Block Recovery (sec)<input id="set-block-rest" type="number" min="0" step="5"></label>
-            <label>Easy (sec)<input id="set-easy" type="number" min="1" step="1"></label>
-            <label>Steady (sec)<input id="set-steady" type="number" min="1" step="1"></label>
-            <label>Sprint (sec)<input id="set-sprint" type="number" min="1" step="1"></label>
-            <label>Rounds / Block<input id="set-rounds" type="number" min="1" step="1"></label>
-            <label>Blocks<input id="set-blocks" type="number" min="1" step="1"></label>
-        </div>
+            <div class="settings-grid">
+                <label>Warm Up (sec)<input id="set-warmup" type="number" min="0" step="5"></label>
+                <label>Cool Down (sec)<input id="set-cooldown" type="number" min="0" step="5"></label>
+                <label>Block Recovery (sec)<input id="set-block-rest" type="number" min="0" step="5"></label>
+                <label>Easy (sec)<input id="set-easy" type="number" min="1" step="1"></label>
+                <label>Steady (sec)<input id="set-steady" type="number" min="1" step="1"></label>
+                <label>Sprint (sec)<input id="set-sprint" type="number" min="1" step="1"></label>
+                <label>Rounds / Block<input id="set-rounds" type="number" min="1" step="1"></label>
+                <label>Blocks<input id="set-blocks" type="number" min="1" step="1"></label>
+            </div>
 
-        <div class="settings-actions">
-            <button class="pill-btn ghost" onclick="toggleSettings(false)">Close</button>
-            <button class="pill-btn primary" onclick="applySettings()">Apply</button>
+            <div class="settings-actions">
+                <button class="pill-btn ghost" onclick="toggleSettings(false)">Cancel</button>
+                <button class="pill-btn primary" onclick="applySettings()">Apply</button>
+            </div>
         </div>
     </div>
 

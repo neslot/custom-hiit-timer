@@ -337,25 +337,11 @@ button:focus-visible {
     margin-bottom: 8px;
 }
 
-.home-stats-title {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-}
-
 .home-stats-head h3 {
     margin: 0;
     font-family: "Sora", "Manrope", sans-serif;
     font-size: 1rem;
     letter-spacing: 0.3px;
-}
-
-.home-log-btn {
-    padding: 7px 12px;
-    font-size: 0.72rem;
-    letter-spacing: 0.7px;
-    text-transform: uppercase;
 }
 
 .home-stats-meta {
@@ -373,6 +359,8 @@ button:focus-visible {
 }
 
 .storage-badge {
+    appearance: none;
+    -webkit-appearance: none;
     font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.8px;
@@ -381,21 +369,13 @@ button:focus-visible {
     padding: 3px 8px;
     color: var(--text-dim);
     background: rgba(255, 255, 255, 0.06);
+    font-family: "Sora", "Manrope", sans-serif;
+    cursor: pointer;
 }
 
-.storage-badge.cloud {
-    border-color: rgba(107, 243, 176, 0.5);
-    color: #9bf9c9;
-}
-
-.storage-badge.local {
+.storage-badge.manual-log-btn {
     border-color: rgba(255, 210, 124, 0.5);
     color: #ffd9a4;
-}
-
-.storage-badge.offline {
-    border-color: rgba(255, 125, 125, 0.5);
-    color: #ffb6b6;
 }
 
 .range-tabs {
@@ -791,23 +771,40 @@ body.start-s3.is-workout::after {
 
 #settings-panel {
     position: fixed;
-    top: calc(58px + env(safe-area-inset-top));
-    right: 12px;
-    width: min(95vw, 470px);
-    max-height: min(86vh, 760px);
-    overflow: auto;
-    z-index: 40;
+    inset: 0;
+    width: 100%;
+    overflow-y: auto;
+    z-index: 66;
     text-align: left;
+    padding: calc(14px + env(safe-area-inset-top)) 14px calc(18px + env(safe-area-inset-bottom));
+    background: linear-gradient(150deg, rgba(10, 20, 40, 0.985), rgba(6, 12, 24, 0.99));
+}
+
+.settings-inner {
+    width: min(760px, 100%);
+    margin: 0 auto;
     border: 1px solid var(--line-strong);
-    border-radius: 16px;
+    border-radius: 18px;
     padding: 14px;
-    background: rgba(7, 14, 26, 0.95);
+    background: rgba(8, 16, 30, 0.95);
     box-shadow: 0 16px 36px rgba(0, 0, 0, 0.48);
 }
 
-#settings-panel h3 {
+.settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.settings-header h3 {
     margin: 0 0 4px;
     font-size: 1.06rem;
+}
+
+.settings-back-btn {
+    min-width: 84px;
 }
 
 #methodology-note {
@@ -1125,6 +1122,10 @@ body.home-v3 .filter-chip.active {
 
 .hidden {
     display: none !important;
+}
+
+body.settings-open {
+    overflow: hidden;
 }
 
 @keyframes liftIn {

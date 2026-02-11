@@ -819,12 +819,15 @@ function goHomeFromWorkout() {
 function toggleSettings(forceOpen) {
     const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : ui.settingsPanel.classList.contains('hidden');
     ui.settingsPanel.classList.toggle('hidden', !shouldOpen);
+    ui.body.classList.toggle('settings-open', shouldOpen);
     if (shouldOpen) {
+        closeStatsPage();
         refreshSettingsInputs();
     } else {
         ui.watchTime.innerText = formatClock(totalTime);
         pendingMethodologyId = currentMethodologyId;
         renderMethodologySelection();
+        updateTopActionButtons();
     }
 }
 
@@ -1003,23 +1006,7 @@ function renderRangeTabs() {
 function setStorageBadge(mode) {
     storageBackend = mode;
     if (!ui.storageBadge) return;
-
-    ui.storageBadge.classList.remove('cloud', 'local', 'offline');
-
-    if (mode === 'postgres') {
-        ui.storageBadge.classList.add('cloud');
-        ui.storageBadge.innerText = "Storage: cloud";
-        return;
-    }
-
-    if (mode === 'offline') {
-        ui.storageBadge.classList.add('offline');
-        ui.storageBadge.innerText = "Storage: offline";
-        return;
-    }
-
-    ui.storageBadge.classList.add('local');
-    ui.storageBadge.innerText = "Storage: local";
+    ui.storageBadge.innerText = "Manual Log";
 }
 
 function showToast(message, tone = 'good') {
@@ -1736,14 +1723,6 @@ if (ui.homeRangeTabs) {
 document.addEventListener('pointerdown', (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
-
-    if (!ui.settingsPanel.classList.contains('hidden')) {
-        const insidePanel = ui.settingsPanel.contains(target);
-        const onSettingsButton = ui.settingsWrap.contains(target) || !!target.closest('#intro-settings-link');
-        if (!insidePanel && !onSettingsButton) {
-            toggleSettings(false);
-        }
-    }
 
     if (!logUi.modal.classList.contains('hidden')) {
         const card = logUi.modal.querySelector('.card');
