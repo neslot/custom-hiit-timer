@@ -1,4 +1,5 @@
 const API_BASE = "";
+const PREFS_KEY = "hiit_timer_prefs_v3";
 
 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 const audioCtx = new AudioContextClass();
@@ -183,6 +184,10 @@ let selectedUser = USERS[0];
 let totalTime = timeline.reduce((sum, step) => sum + step.time, 0);
 let elapsed = 0;
 let cachedLogs = [];
+let homeRange = 7;
+let storageBackend = "local";
+let toastTimer = null;
+let connectionAlerted = false;
 
 const ui = {
     body: document.body,
@@ -209,7 +214,10 @@ const ui = {
     methodologyNote: document.getElementById('methodology-note'),
     homeStatsUser: document.getElementById('home-stats-user'),
     homeKpis: document.getElementById('home-stat-kpis'),
-    homeList: document.getElementById('home-performances-list')
+    homeList: document.getElementById('home-performances-list'),
+    homeRangeTabs: document.getElementById('home-range-tabs'),
+    storageBadge: document.getElementById('storage-badge'),
+    toast: document.getElementById('toast')
 };
 
 const logUi = {
@@ -232,6 +240,51 @@ function cloneSettings(settings) {
         rounds: settings.rounds,
         blocks: settings.blocks
     };
+}
+
+function normalizeSettings(raw, fallback = METHODOLOGIES.copenhagen.settings) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    return {
+        warmup: Math.max(0, parseInt(source.warmup, 10) || fallback.warmup),
+        cooldown: Math.max(0, parseInt(source.cooldown, 10) || fallback.cooldown),
+        easy: Math.max(1, parseInt(source.easy, 10) || fallback.easy),
+        steady: Math.max(1, parseInt(source.steady, 10) || fallback.steady),
+        sprint: Math.max(1, parseInt(source.sprint, 10) || fallback.sprint),
+        rounds: Math.max(1, parseInt(source.rounds, 10) || fallback.rounds),
+        blocks: Math.max(1, parseInt(source.blocks, 10) || fallback.blocks)
+    };
+}
+
+function persistPreferences() {
+    try {
+        const payload = {
+            selectedUser,
+            voiceMuted,
+            homeRange,
+            workoutSettings,
+            currentMethodologyId
+        };
+        localStorage.setItem(PREFS_KEY, JSON.stringify(payload));
+    } catch {
+        // Ignore localStorage errors.
+    }
+}
+
+function loadPreferences() {
+    try {
+        const raw = localStorage.getItem(PREFS_KEY);
+        if (!raw) return;
+
+        const parsed = JSON.parse(raw);
+        selectedUser = sanitizeUser(parsed.selectedUser);
+        voiceMuted = !!parsed.voiceMuted;
+        homeRange = parsed.homeRange === 'all' ? 'all' : Math.max(1, parseInt(parsed.homeRange, 10) || 7);
+        workoutSettings = normalizeSettings(parsed.workoutSettings, METHODOLOGIES.copenhagen.settings);
+        currentMethodologyId = detectMethodology(workoutSettings);
+        pendingMethodologyId = currentMethodologyId;
+    } catch {
+        // Ignore malformed preference payloads.
+    }
 }
 
 function formatClock(seconds) {
@@ -576,6 +629,7 @@ function toggleVoiceMute() {
         window.speechSynthesis.cancel();
     }
     syncVoiceUi();
+    persistPreferences();
 }
 
 function capitalize(value) {
@@ -635,15 +689,101 @@ function formatDuration(seconds) {
     return `${m}m ${s}s`;
 }
 
+function toDayKey(value) {
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function dayKeyMinusOne(dayKey) {
+    const d = new Date(`${dayKey}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    d.setDate(d.getDate() - 1);
+    return toDayKey(d);
+}
+
+function computeStreakDays(entries) {
+    const uniqueDays = new Set(entries.map((entry) => toDayKey(entry.date)).filter(Boolean));
+    if (!uniqueDays.size) return 0;
+
+    const sortedDays = Array.from(uniqueDays).sort((a, b) => b.localeCompare(a));
+    let cursor = sortedDays[0];
+    let streak = 0;
+
+    while (cursor && uniqueDays.has(cursor)) {
+        streak += 1;
+        cursor = dayKeyMinusOne(cursor);
+    }
+
+    return streak;
+}
+
+function inRange(dateValue, range) {
+    if (range === 'all') return true;
+    const d = new Date(dateValue);
+    if (Number.isNaN(d.getTime())) return false;
+    const now = new Date();
+    const cutoff = new Date(now);
+    cutoff.setDate(now.getDate() - Number(range));
+    return d >= cutoff;
+}
+
+function renderRangeTabs() {
+    if (!ui.homeRangeTabs) return;
+    const tabs = ui.homeRangeTabs.querySelectorAll('.range-tab');
+    tabs.forEach((tab) => {
+        const isActive = tab.dataset.range === String(homeRange);
+        tab.classList.toggle('active', isActive);
+    });
+}
+
+function setStorageBadge(mode) {
+    storageBackend = mode;
+    if (!ui.storageBadge) return;
+
+    ui.storageBadge.classList.remove('cloud', 'local', 'offline');
+
+    if (mode === 'postgres') {
+        ui.storageBadge.classList.add('cloud');
+        ui.storageBadge.innerText = "Storage: cloud";
+        return;
+    }
+
+    if (mode === 'offline') {
+        ui.storageBadge.classList.add('offline');
+        ui.storageBadge.innerText = "Storage: offline";
+        return;
+    }
+
+    ui.storageBadge.classList.add('local');
+    ui.storageBadge.innerText = "Storage: local";
+}
+
+function showToast(message, tone = 'good') {
+    if (!ui.toast) return;
+    ui.toast.innerText = message;
+    ui.toast.classList.remove('hidden', 'good', 'bad');
+    ui.toast.classList.add(tone === 'bad' ? 'bad' : 'good');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+        ui.toast.classList.add('hidden');
+    }, 1900);
+}
+
 function renderHomeStats(logs) {
     if (!ui.homeKpis || !ui.homeList) return;
 
-    const filtered = logs.filter((entry) => sanitizeUser(entry.user) === selectedUser);
-    const lastFive = filtered.slice(0, 5);
+    const userLogs = logs.filter((entry) => sanitizeUser(entry.user) === selectedUser);
+    const rangeLogs = userLogs.filter((entry) => inRange(entry.date, homeRange));
+    const lastFive = rangeLogs.slice(0, 5);
 
-    const totalSessions = filtered.length;
-    const totalMinutes = filtered.reduce((sum, entry) => sum + ((Number(entry.durationSec) || 0) / 60), 0);
-    const hrEntries = filtered.filter((entry) => Number(entry.avgHr) > 0);
+    const totalSessions = rangeLogs.length;
+    const totalMinutes = rangeLogs.reduce((sum, entry) => sum + ((Number(entry.durationSec) || 0) / 60), 0);
+    const hrEntries = rangeLogs.filter((entry) => Number(entry.avgHr) > 0);
+    const streak = computeStreakDays(userLogs);
     const avgHr = hrEntries.length
         ? Math.round(hrEntries.reduce((sum, entry) => sum + Number(entry.avgHr), 0) / hrEntries.length)
         : 0;
@@ -652,6 +792,7 @@ function renderHomeStats(logs) {
         <div class="kpi-card"><strong>${totalSessions}</strong><span>Sessions</span></div>
         <div class="kpi-card"><strong>${Math.round(totalMinutes)}</strong><span>Total Min</span></div>
         <div class="kpi-card"><strong>${avgHr || '--'}</strong><span>Avg HR</span></div>
+        <div class="kpi-card"><strong>${streak}</strong><span>Streak</span></div>
     `;
 
     ui.homeList.innerHTML = "";
@@ -709,10 +850,36 @@ async function fetchLogs() {
         if (!res.ok) throw new Error('Failed to fetch logs');
         const logs = await res.json();
         if (!Array.isArray(logs)) return [];
+        if (storageBackend === 'offline') {
+            setStorageBadge('local');
+        }
+        connectionAlerted = false;
         return logs;
     } catch (err) {
         console.error(err);
+        setStorageBadge('offline');
+        if (!connectionAlerted) {
+            showToast('Cannot reach server', 'bad');
+            connectionAlerted = true;
+        }
         return [];
+    }
+}
+
+async function refreshStorageMode() {
+    try {
+        const res = await fetch(`${API_BASE}/api/storage`);
+        if (!res.ok) throw new Error('Failed storage check');
+        const payload = await res.json();
+        if (payload && payload.backend) {
+            setStorageBadge(payload.backend);
+            return;
+        }
+    } catch (err) {
+        console.error(err);
+    }
+    if (storageBackend !== 'offline') {
+        setStorageBadge('local');
     }
 }
 
@@ -810,12 +977,15 @@ async function saveWorkoutLog() {
         if (!res.ok) throw new Error('Failed to save log');
     } catch (err) {
         console.error(err);
-        alert('Could not save log. Make sure server is running.');
+        showToast('Save failed', 'bad');
         return;
     }
 
     sessionLogged = true;
     await refreshLogs();
+    await refreshStorageMode();
+    showToast('Session saved');
+    persistPreferences();
     closeLogModal();
 }
 
@@ -869,6 +1039,7 @@ function applySettings() {
 
     renderMethodologySelection();
     ui.watchTime.innerText = formatClock(totalTime);
+    persistPreferences();
 
     resetWorkout(true);
     toggleSettings(false);
@@ -880,6 +1051,7 @@ ui.voiceToggle.addEventListener('change', (e) => {
         window.speechSynthesis.cancel();
     }
     syncVoiceUi();
+    persistPreferences();
 });
 
 logUi.instrument.addEventListener('change', (e) => {
@@ -889,6 +1061,7 @@ logUi.instrument.addEventListener('change', (e) => {
 ui.introUserSelect.addEventListener('change', (e) => {
     selectedUser = sanitizeUser(e.target.value);
     syncUserUi();
+    persistPreferences();
 });
 
 document.querySelector('.watch-shell').addEventListener('keydown', (e) => {
@@ -911,6 +1084,56 @@ document.querySelector('.watch-shell').addEventListener('keydown', (e) => {
     });
 });
 
+if (ui.homeRangeTabs) {
+    ui.homeRangeTabs.querySelectorAll('.range-tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+            const value = tab.dataset.range === 'all' ? 'all' : parseInt(tab.dataset.range || '7', 10);
+            homeRange = value === 'all' ? 'all' : Math.max(1, value || 7);
+            renderRangeTabs();
+            renderHomeStats(cachedLogs);
+            persistPreferences();
+        });
+    });
+}
+
+document.addEventListener('pointerdown', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    if (!ui.settingsPanel.classList.contains('hidden')) {
+        const insidePanel = ui.settingsPanel.contains(target);
+        const onSettingsButton = ui.settingsWrap.contains(target) || !!target.closest('#intro-settings-link');
+        if (!insidePanel && !onSettingsButton) {
+            toggleSettings(false);
+        }
+    }
+
+    if (!logUi.modal.classList.contains('hidden')) {
+        const card = logUi.modal.querySelector('.card');
+        if (card && !card.contains(target)) {
+            closeLogModal();
+        }
+    }
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (!logUi.modal.classList.contains('hidden')) {
+        closeLogModal();
+        return;
+    }
+    if (!ui.settingsPanel.classList.contains('hidden')) {
+        toggleSettings(false);
+    }
+});
+
+loadPreferences();
+timeline = buildTimeline(workoutSettings);
+totalTime = timeline.reduce((sum, step) => sum + step.time, 0);
+currentIndex = 0;
+timeLeft = timeline[0].time;
+elapsed = 0;
+
 ui.watchTime.innerText = formatClock(totalTime);
 ui.timer.innerText = formatClock(totalTime);
 applyTheme(timeline[0]);
@@ -918,7 +1141,11 @@ renderMethodologyButtons();
 refreshSettingsInputs();
 syncVoiceUi();
 syncUserUi();
+renderRangeTabs();
+setStorageBadge(storageBackend);
 renderLogMetrics(logUi.instrument.value || 'running');
 updateLogButtonVisibility();
 refreshLogs();
+refreshStorageMode();
 setInterval(refreshLogs, 30000);
+setInterval(refreshStorageMode, 45000);

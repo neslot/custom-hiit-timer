@@ -46,7 +46,15 @@
             <aside class="home-stats">
                 <div class="home-stats-head">
                     <h3>Last Performances</h3>
-                    <span id="home-stats-user">Toby</span>
+                    <div class="home-stats-meta">
+                        <span id="home-stats-user">Toby</span>
+                        <span id="storage-badge" class="storage-badge">Storage: local</span>
+                    </div>
+                </div>
+                <div id="home-range-tabs" class="range-tabs">
+                    <button type="button" class="range-tab active" data-range="7">7D</button>
+                    <button type="button" class="range-tab" data-range="30">30D</button>
+                    <button type="button" class="range-tab" data-range="all">All</button>
                 </div>
                 <div id="home-stat-kpis" class="home-kpis"></div>
                 <ul id="home-performances-list" class="home-list"></ul>
@@ -125,6 +133,7 @@
         <button id="btn-log" class="pill-btn accent hidden" onclick="showLogModal()">LOG</button>
         <button id="btn-restart" class="round-btn hidden" onclick="restartWorkout()" title="Restart">&#x21bb;</button>
     </div>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
     <script src="./app.js"></script>
 </body>
