@@ -204,6 +204,7 @@ let sessionProtocolId = currentMethodologyId;
 let sessionProtocolLabel = METHODOLOGIES[currentMethodologyId].name;
 let homeVariant = 'v1';
 let startVariant = 's1';
+let logMode = 'session';
 
 const statsState = {
     user: selectedUser,
@@ -264,8 +265,11 @@ const logUi = {
     instrument: document.getElementById('log-instrument'),
     calories: document.getElementById('log-calories'),
     avgHr: document.getElementById('log-avg-hr'),
+    dateInput: document.getElementById('log-date'),
+    durationMin: document.getElementById('log-duration-min'),
     metricsWrap: document.getElementById('log-metrics'),
     userContext: document.getElementById('log-user-context'),
+    modeContext: document.getElementById('log-mode-context'),
     protocolContext: document.getElementById('log-protocol-context'),
     list: document.getElementById('recent-logs-list')
 };
@@ -897,6 +901,25 @@ function formatDuration(seconds) {
     return `${m}m ${s}s`;
 }
 
+function toDatetimeLocalValue(dateInput) {
+    const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+    if (Number.isNaN(date.getTime())) return "";
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${d}T${hh}:${mm}`;
+}
+
+function parseDatetimeLocalToIso(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+}
+
 function normalizeLogEntry(entry) {
     const user = sanitizeUser(entry.user);
     const instrument = sanitizeInstrument(entry.instrument);
@@ -1486,11 +1509,23 @@ function collectLogMetrics() {
     return data;
 }
 
-function showLogModal() {
+function showLogModal(mode = 'session') {
+    logMode = mode === 'manual' ? 'manual' : 'session';
     logUi.modal.classList.remove('hidden');
     logUi.instrument.value = 'running';
     logUi.calories.value = '';
     logUi.avgHr.value = '';
+    const defaultDate = toDatetimeLocalValue(new Date());
+    if (logUi.dateInput) {
+        logUi.dateInput.value = defaultDate;
+    }
+    if (logUi.durationMin) {
+        const sessionMinutes = Math.max(1, Math.round((elapsed || totalTime) / 60));
+        logUi.durationMin.value = logMode === 'manual' ? sessionMinutes : sessionMinutes;
+    }
+    if (logUi.modeContext) {
+        logUi.modeContext.innerText = logMode === 'manual' ? "Mode: Custom Log" : "Mode: Session Summary";
+    }
     syncUserUi();
     if (logUi.protocolContext) {
         logUi.protocolContext.innerText = `Protocol: ${sessionProtocolLabel}`;
@@ -1499,15 +1534,36 @@ function showLogModal() {
     renderLogs(cachedLogs);
 }
 
+function openCustomLog() {
+    if (isRunning) {
+        showToast('Finish current workout first', 'bad');
+        return;
+    }
+    sessionProtocolId = currentMethodologyId;
+    sessionProtocolLabel = getProtocolLabel(currentMethodologyId);
+    showLogModal('manual');
+}
+
 function closeLogModal() {
     logUi.modal.classList.add('hidden');
 }
 
 async function saveWorkoutLog() {
+    const dateIso = parseDatetimeLocalToIso(logUi.dateInput ? logUi.dateInput.value : '');
+    if (!dateIso) {
+        showToast('Date is required', 'bad');
+        return;
+    }
+
     const instrument = sanitizeInstrument(logUi.instrument.value || 'running');
+    const durationInputValue = Number(logUi.durationMin ? logUi.durationMin.value : 0);
+    const durationSec = Number.isFinite(durationInputValue) && durationInputValue > 0
+        ? Math.round(durationInputValue * 60)
+        : Math.max(0, elapsed);
+
     const entry = {
-        date: new Date().toISOString(),
-        durationSec: elapsed,
+        date: dateIso,
+        durationSec,
         user: sanitizeUser(selectedUser),
         instrument,
         calories: parseInt(logUi.calories.value || '0', 10),
@@ -1530,7 +1586,9 @@ async function saveWorkoutLog() {
         return;
     }
 
-    sessionLogged = true;
+    if (logMode === 'session') {
+        sessionLogged = true;
+    }
     await refreshLogs();
     await refreshStorageMode();
     showToast('Session saved');

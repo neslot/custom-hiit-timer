@@ -337,11 +337,25 @@ button:focus-visible {
     margin-bottom: 8px;
 }
 
+.home-stats-title {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
 .home-stats-head h3 {
     margin: 0;
     font-family: "Sora", "Manrope", sans-serif;
     font-size: 1rem;
     letter-spacing: 0.3px;
+}
+
+.home-log-btn {
+    padding: 7px 12px;
+    font-size: 0.72rem;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
 }
 
 .home-stats-meta {
@@ -882,6 +896,7 @@ body.start-s3.is-workout::after {
 }
 
 #log-user-context,
+#log-mode-context,
 #log-protocol-context {
     margin: 0 0 8px;
     font-size: 0.81rem;
@@ -930,7 +945,7 @@ body.start-s3.is-workout::after {
     position: fixed;
     inset: 0;
     z-index: 60;
-    background: linear-gradient(160deg, #050a14, #071323 58%, #081a31);
+    background: linear-gradient(150deg, rgba(10, 20, 40, 0.96), rgba(6, 12, 24, 0.97));
     backdrop-filter: blur(4px);
     overflow-y: auto;
     padding: calc(14px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom));
@@ -1007,8 +1022,10 @@ body.start-s3.is-workout::after {
 .stats-card {
     border: 1px solid var(--line-soft);
     border-radius: 16px;
-    background: rgba(8, 17, 31, 0.92);
+    background: rgba(9, 16, 29, 0.9);
     padding: 12px;
+    box-shadow: 0 16px 30px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(12px);
 }
 
 .stats-card h3 {
@@ -1023,6 +1040,34 @@ body.start-s3.is-workout::after {
     display: block;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.03);
+}
+
+body.home-v2 #stats-page {
+    background: linear-gradient(155deg, rgba(25, 10, 52, 0.96), rgba(10, 16, 41, 0.97));
+}
+
+body.home-v2 .stats-card {
+    background: rgba(15, 18, 43, 0.92);
+    border-color: rgba(186, 159, 255, 0.26);
+}
+
+body.home-v2 .filter-chip.active {
+    color: #1a1330;
+    background: linear-gradient(145deg, #ffc0df, #9f8cff);
+}
+
+body.home-v3 #stats-page {
+    background: linear-gradient(160deg, rgba(6, 12, 31, 0.96), rgba(7, 19, 43, 0.97));
+}
+
+body.home-v3 .stats-card {
+    background: rgba(6, 16, 34, 0.9);
+    border-color: rgba(126, 211, 255, 0.26);
+}
+
+body.home-v3 .filter-chip.active {
+    color: #06172c;
+    background: linear-gradient(145deg, #85d8ff, #8b92ff);
 }
 
 .stats-list {

@@ -52,7 +52,10 @@
 
             <aside class="home-stats">
                 <div class="home-stats-head">
-                    <h3>Last Performances</h3>
+                    <div class="home-stats-title">
+                        <h3>Last Performances</h3>
+                        <button type="button" class="pill-btn ghost home-log-btn" onclick="openCustomLog()">Custom Log</button>
+                    </div>
                     <div class="home-stats-meta">
                         <span id="home-stats-user">Toby</span>
                         <span id="storage-badge" class="storage-badge">Storage: local</span>
@@ -108,8 +111,15 @@
         <div class="card">
             <h3>Log This Session</h3>
             <p id="log-user-context">User: Toby</p>
+            <p id="log-mode-context">Mode: Session Summary</p>
             <p id="log-protocol-context">Protocol: University of Copenhagen</p>
             <div class="log-grid">
+                <label>Date
+                    <input id="log-date" type="datetime-local">
+                </label>
+                <label>Duration (min)
+                    <input id="log-duration-min" type="number" min="0" step="1" placeholder="e.g. 15">
+                </label>
                 <label>Equipment
                     <select id="log-instrument">
                         <option value="running">Running</option>
