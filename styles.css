@@ -248,13 +248,28 @@ body.is-workout {
     background: rgba(123, 153, 225, 0.22);
 }
 
+.watch-methodology-link {
+    cursor: pointer;
+    transition: filter 0.16s ease, transform 0.12s ease, border-color 0.18s ease;
+}
+
+.watch-methodology-link:hover {
+    filter: brightness(1.08);
+    border-color: rgba(195, 214, 246, 0.48);
+}
+
+.watch-methodology-link:active {
+    transform: scale(0.98);
+}
+
 .watch-sub {
     font-size: 0.9rem;
     color: var(--text-dim);
 }
 
 .intro-user {
-    margin-top: 8px;
+    margin-top: 18px;
+    margin-bottom: 14px;
     width: min(92%, 280px);
     display: flex;
     flex-direction: column;
@@ -294,7 +309,7 @@ button:focus-visible {
 }
 
 .intro-actions {
-    margin-top: 6px;
+    margin-top: 12px;
     width: min(92%, 280px);
 }
 
@@ -372,7 +387,7 @@ button:focus-visible {
     padding: 3px;
     border-radius: 999px;
     border: 1px solid var(--line-soft);
-    background: rgba(255, 255, 255, 0.04);
+    background: linear-gradient(145deg, rgba(36, 25, 61, 0.58), rgba(16, 29, 62, 0.52));
 }
 
 .range-tab {
@@ -387,8 +402,9 @@ button:focus-visible {
 }
 
 .range-tab.active {
-    color: #05131f;
-    background: linear-gradient(145deg, #82d6ff, #76f2c2);
+    color: #f4f6ff;
+    background: linear-gradient(145deg, #ab8eff, #6f7fff);
+    box-shadow: 0 6px 14px rgba(97, 88, 211, 0.42);
 }
 
 .home-kpis {
@@ -514,7 +530,7 @@ button:focus-visible {
 #controls {
     position: fixed;
     left: 50%;
-    bottom: calc(18px + env(safe-area-inset-bottom));
+    bottom: calc(30px + env(safe-area-inset-bottom));
     transform: translateX(-50%);
     display: grid;
     grid-auto-flow: column;
@@ -557,8 +573,8 @@ button:focus-visible {
 }
 
 .pill-btn.primary {
-    background: linear-gradient(145deg, var(--mint-a), var(--mint-b));
-    color: #03160d;
+    background: linear-gradient(145deg, #a77dff, #5f88ff);
+    color: #f4f8ff;
 }
 
 .pill-btn.secondary {
@@ -1050,6 +1066,6 @@ button:focus-visible {
     }
 
     #voice-toggle-wrap {
-        top: calc(56px + env(safe-area-inset-top));
+        top: calc(10px + env(safe-area-inset-top));
     }
 }

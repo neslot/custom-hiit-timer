@@ -1553,13 +1553,25 @@ if (ui.statsRangeSelect) {
 
 document.querySelector('.watch-shell').addEventListener('keydown', (e) => {
     const targetTag = e.target && e.target.tagName ? e.target.tagName.toLowerCase() : "";
-    if (targetTag === 'select' || targetTag === 'input' || targetTag === 'button') return;
+    const onMethodologyLink = e.target instanceof Element && !!e.target.closest('.watch-methodology-link');
+    if (targetTag === 'select' || targetTag === 'input' || targetTag === 'button' || onMethodologyLink) return;
 
     if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         startWorkout();
     }
 });
+
+const watchMethodologyLink = document.querySelector('.watch-methodology-link');
+if (watchMethodologyLink) {
+    watchMethodologyLink.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleSettings(true);
+        }
+    });
+}
 
 ['set-warmup', 'set-cooldown', 'set-block-rest', 'set-easy', 'set-steady', 'set-sprint', 'set-rounds', 'set-blocks'].forEach((id) => {
     const input = document.getElementById(id);
