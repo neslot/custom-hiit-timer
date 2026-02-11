@@ -12,7 +12,21 @@ try {
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_PATH = path.join(__dirname, 'db.json');
-const DATABASE_URL = process.env.DATABASE_URL;
+const DATABASE_URL_KEYS = ['DATABASE_URL', 'DATABASE_PRIVATE_URL', 'DATABASE_PUBLIC_URL', 'POSTGRES_URL'];
+
+function resolveDatabaseUrl() {
+  for (const key of DATABASE_URL_KEYS) {
+    const value = process.env[key];
+    if (typeof value === 'string' && value.trim()) {
+      return { url: value.trim(), source: key };
+    }
+  }
+  return { url: '', source: null };
+}
+
+const DB_CONFIG = resolveDatabaseUrl();
+const DATABASE_URL = DB_CONFIG.url;
+const DATABASE_URL_SOURCE = DB_CONFIG.source;
 
 app.use(express.json());
 app.use(express.static(__dirname));
@@ -120,8 +134,10 @@ class Storage {
     if (!DATABASE_URL || !Pool) {
       this.ensureFile();
       this.mode = 'file';
-      if (DATABASE_URL && !Pool) {
-        console.warn('DATABASE_URL is set but pg is not installed; using file storage.');
+      if (!DATABASE_URL) {
+        console.warn('No database URL found in env; using file storage.');
+      } else if (!Pool) {
+        console.warn('Database URL is set but pg is not installed; using file storage.');
       }
       return;
     }
@@ -131,6 +147,7 @@ class Storage {
       : { rejectUnauthorized: false };
 
     try {
+      console.log(`Attempting Postgres connection via ${DATABASE_URL_SOURCE}`);
       this.pool = new Pool({
         connectionString: DATABASE_URL,
         ssl
