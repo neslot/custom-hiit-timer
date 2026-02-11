@@ -73,6 +73,7 @@
     <div id="progress-container"><div id="progress-bar"></div></div>
 
     <div id="settings-wrap">
+        <button id="btn-home" class="top-action hidden" onclick="goHomeFromWorkout()">Home</button>
         <button id="btn-stats" class="top-action" onclick="openStatsPage()">Stats</button>
         <button id="btn-settings" class="top-action" onclick="toggleSettings()">Settings</button>
     </div>
@@ -206,7 +207,6 @@
     <div id="instruction">Turn up volume and tap start.</div>
 
     <div id="controls">
-        <button id="btn-back" class="pill-btn secondary hidden" onclick="goHomeFromWorkout()">Back</button>
         <button id="btn-start" class="pill-btn primary controls-main" onclick="startWorkout()">Start Session</button>
         <button id="btn-pause" class="pill-btn primary controls-main hidden" onclick="togglePause()">Pause</button>
         <button id="btn-log" class="pill-btn accent hidden" onclick="showLogModal()">Log Session</button>

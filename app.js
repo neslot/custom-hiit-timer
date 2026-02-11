@@ -218,7 +218,6 @@ const ui = {
     instr: document.getElementById('instruction'),
     startBtn: document.getElementById('btn-start'),
     pauseBtn: document.getElementById('btn-pause'),
-    backBtn: document.getElementById('btn-back'),
     logBtn: document.getElementById('btn-log'),
     progress: document.getElementById('progress-bar'),
     voiceToggleWrap: document.getElementById('voice-toggle-wrap'),
@@ -250,6 +249,10 @@ const ui = {
     statsLineCanvas: document.getElementById('stats-line-canvas'),
     statsMixCanvas: document.getElementById('stats-mix-canvas')
 };
+
+ui.homeBtn = document.getElementById('btn-home');
+ui.statsBtn = document.getElementById('btn-stats');
+ui.settingsBtn = document.getElementById('btn-settings');
 
 const logUi = {
     modal: document.getElementById('workout-log'),
@@ -564,11 +567,41 @@ function startTimerLoop() {
 }
 
 function showWorkoutControls() {
-    ui.settingsWrap.classList.add('hidden');
+    ui.voiceToggleWrap.classList.remove('hidden');
+    updateTopActionButtons();
 }
 
 function showHomeControls() {
+    ui.voiceToggleWrap.classList.add('hidden');
+    updateTopActionButtons();
+}
+
+function updateTopActionButtons() {
+    if (!ui.settingsWrap) return;
+
+    const introVisible = !ui.intro.classList.contains('hidden');
+    if (introVisible) {
+        ui.settingsWrap.classList.add('hidden');
+        return;
+    }
+
+    if (isRunning && !isPaused) {
+        ui.settingsWrap.classList.add('hidden');
+        return;
+    }
+
     ui.settingsWrap.classList.remove('hidden');
+
+    if (isPaused) {
+        if (ui.homeBtn) ui.homeBtn.classList.remove('hidden');
+        if (ui.statsBtn) ui.statsBtn.classList.remove('hidden');
+        if (ui.settingsBtn) ui.settingsBtn.classList.add('hidden');
+        return;
+    }
+
+    if (ui.homeBtn) ui.homeBtn.classList.add('hidden');
+    if (ui.statsBtn) ui.statsBtn.classList.remove('hidden');
+    if (ui.settingsBtn) ui.settingsBtn.classList.remove('hidden');
 }
 
 function startWorkout() {
@@ -585,11 +618,13 @@ function startWorkout() {
     sessionLogged = false;
     sessionProtocolId = currentMethodologyId;
     sessionProtocolLabel = getProtocolLabel(currentMethodologyId);
+    window.scrollTo(0, 0);
 
     ui.intro.classList.add('hidden');
+    ui.body.classList.add('is-workout');
     ui.startBtn.classList.add('hidden');
     ui.pauseBtn.classList.remove('hidden');
-    ui.backBtn.classList.remove('hidden');
+    ui.pauseBtn.classList.remove('is-paused');
     ui.pauseBtn.innerText = "Pause";
     ui.settingsPanel.classList.add('hidden');
     closeStatsPage();
@@ -611,8 +646,8 @@ function endWorkout() {
     ui.phase.innerText = "Done";
     ui.timer.innerText = "0:00";
     ui.pauseBtn.classList.add('hidden');
+    ui.pauseBtn.classList.remove('is-paused');
     ui.logBtn.classList.add('hidden');
-    ui.backBtn.classList.remove('hidden');
     ui.startBtn.classList.remove('hidden');
     ui.startBtn.innerText = "Start Again";
 
@@ -631,12 +666,16 @@ function togglePause() {
     if (isPaused) {
         clearInterval(timerInterval);
         ui.pauseBtn.innerText = "Resume";
+        ui.pauseBtn.classList.add('is-paused');
         speak("Paused.");
+        updateTopActionButtons();
         return;
     }
 
     ui.pauseBtn.innerText = "Pause";
+    ui.pauseBtn.classList.remove('is-paused');
     speak("Resumed.");
+    updateTopActionButtons();
     startTimerLoop();
 }
 
@@ -657,8 +696,8 @@ function resetWorkout(fullReset = false) {
     ui.startBtn.classList.remove('hidden');
     ui.startBtn.innerText = "Start Session";
     ui.pauseBtn.classList.add('hidden');
+    ui.pauseBtn.classList.remove('is-paused');
     ui.logBtn.classList.add('hidden');
-    ui.backBtn.classList.add('hidden');
 
     ui.phase.innerText = "Ready";
     ui.timer.innerText = formatClock(totalTime);
@@ -666,16 +705,19 @@ function resetWorkout(fullReset = false) {
     ui.progress.style.width = "0%";
 
     applyTheme(timeline[0]);
+    ui.body.classList.remove('is-workout');
     closeLogModal();
 
     if (fullReset) {
         ui.intro.classList.remove('hidden');
+        window.scrollTo(0, 0);
     }
 
     showHomeControls();
 }
 
 function goHomeFromWorkout() {
+    closeStatsPage();
     resetWorkout(true);
 }
 
@@ -1599,6 +1641,7 @@ syncVoiceUi();
 syncUserUi();
 renderRangeTabs();
 setStorageBadge(storageBackend);
+updateTopActionButtons();
 renderLogMetrics(logUi.instrument.value || 'running');
 updateLogButtonVisibility();
 refreshLogs();
