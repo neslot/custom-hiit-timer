@@ -175,7 +175,7 @@ body.is-workout {
     width: min(95vw, 450px);
     margin: 0 auto;
     position: relative;
-    cursor: pointer;
+    cursor: default;
     outline: none;
     animation: liftIn 0.55s ease-out both;
 }
@@ -263,8 +263,12 @@ body.is-workout {
 }
 
 .watch-sub {
-    font-size: 0.9rem;
-    color: var(--text-dim);
+    font-family: "Sora", "Manrope", sans-serif;
+    font-size: 0.86rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(235, 243, 255, 0.82);
 }
 
 .intro-user {
@@ -665,7 +669,7 @@ body.start-s3.is-workout::after {
 #controls {
     position: fixed;
     left: 50%;
-    bottom: calc(30px + env(safe-area-inset-bottom));
+    bottom: calc(44px + env(safe-area-inset-bottom));
     transform: translateX(-50%);
     display: grid;
     grid-auto-flow: column;
@@ -709,7 +713,15 @@ body.start-s3.is-workout::after {
 
 .pill-btn.primary {
     background: linear-gradient(145deg, #a77dff, #5f88ff);
-    color: #f4f8ff;
+    color: #142447;
+}
+
+#intro-start,
+#btn-start {
+    color: #132345;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+    border-color: rgba(15, 28, 56, 0.22);
+    box-shadow: 0 8px 20px rgba(14, 23, 44, 0.32);
 }
 
 .pill-btn.secondary {
@@ -1124,6 +1136,7 @@ body.start-s3.is-workout::after {
 
     #controls {
         width: calc(100% - 16px);
+        bottom: calc(76px + env(safe-area-inset-bottom));
         justify-content: center;
         grid-auto-flow: row;
     }

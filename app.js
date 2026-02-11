@@ -1642,17 +1642,6 @@ if (ui.statsRangeSelect) {
     });
 }
 
-document.querySelector('.watch-shell').addEventListener('keydown', (e) => {
-    const targetTag = e.target && e.target.tagName ? e.target.tagName.toLowerCase() : "";
-    const onMethodologyLink = e.target instanceof Element && !!e.target.closest('.watch-methodology-link');
-    if (targetTag === 'select' || targetTag === 'input' || targetTag === 'button' || onMethodologyLink) return;
-
-    if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        startWorkout();
-    }
-});
-
 const watchMethodologyLink = document.querySelector('.watch-methodology-link');
 if (watchMethodologyLink) {
     watchMethodologyLink.addEventListener('keydown', (e) => {
