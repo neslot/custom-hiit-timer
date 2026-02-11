@@ -136,8 +136,8 @@ const PHASE_THEME = {
         cooldownGlow: 0
     },
     steady: {
-        color: "#32a8ff",
-        bg: "radial-gradient(circle at 18% 17%, #60beff 0%, #195f9e 45%, #07111c 100%)",
+        color: "#ff9f43",
+        bg: "radial-gradient(circle at 18% 17%, #ffc06a 0%, #b8671f 45%, #221106 100%)",
         overlay: 0,
         cooldownGlow: 0
     },

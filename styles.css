@@ -501,8 +501,8 @@ body.home-v2 .range-tab.active {
 }
 
 body.home-v2 #intro .pill-btn.primary {
-    background: linear-gradient(145deg, #ffc2de, #9f8eff);
-    color: #211239;
+    background: linear-gradient(145deg, #ffb6d2, #9a88ff);
+    color: #2a1748;
 }
 
 body.home-v3 #intro {
@@ -537,8 +537,8 @@ body.home-v3 .range-tab.active {
 }
 
 body.home-v3 #intro .pill-btn.primary {
-    background: linear-gradient(145deg, #82d4ff, #8c8dff);
-    color: #09192f;
+    background: linear-gradient(145deg, #75c6ff, #8a83ff);
+    color: #0a1d39;
 }
 
 body.start-s2 #phase {
@@ -706,16 +706,17 @@ body.start-s3.is-workout::after {
 }
 
 .pill-btn.primary {
-    background: linear-gradient(145deg, #a77dff, #5f88ff);
-    color: #142447;
+    background: linear-gradient(145deg, #8ec9ff, #7486ff);
+    color: #0e2042;
 }
 
 #intro-start,
 #btn-start {
-    color: #132345;
-    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
-    border-color: rgba(15, 28, 56, 0.22);
-    box-shadow: 0 8px 20px rgba(14, 23, 44, 0.32);
+    color: #0d1f40;
+    font-weight: 800;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.18);
+    border-color: rgba(10, 22, 48, 0.28);
+    box-shadow: 0 8px 20px rgba(14, 23, 44, 0.38);
 }
 
 .pill-btn.secondary {
