@@ -1,5 +1,5 @@
 const API_BASE = "";
-const PREFS_KEY = "hiit_timer_prefs_v3";
+const PREFS_KEY = "hiit_timer_prefs_v4";
 
 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 const audioCtx = new AudioContextClass();
@@ -75,10 +75,11 @@ const METHODOLOGIES = {
     copenhagen: {
         id: "copenhagen",
         name: "University of Copenhagen",
-        subtitle: "30/20/10 protocol",
+        subtitle: "30/20/10 with mid-block recovery",
         settings: {
-            warmup: 180,
-            cooldown: 120,
+            warmup: 120,
+            cooldown: 60,
+            blockRest: 120,
             easy: 30,
             steady: 20,
             sprint: 10,
@@ -88,14 +89,15 @@ const METHODOLOGIES = {
     },
     norwegian: {
         id: "norwegian",
-        name: "Norwegian 4x4",
-        subtitle: "4 rounds with strong sustained efforts",
+        name: "Norwegian 4x4 Style",
+        subtitle: "Long hard intervals with recovery",
         settings: {
             warmup: 300,
             cooldown: 180,
-            easy: 120,
-            steady: 60,
-            sprint: 60,
+            blockRest: 180,
+            easy: 90,
+            steady: 30,
+            sprint: 150,
             rounds: 4,
             blocks: 1
         }
@@ -107,6 +109,7 @@ const METHODOLOGIES = {
         settings: {
             warmup: 180,
             cooldown: 120,
+            blockRest: 60,
             easy: 10,
             steady: 1,
             sprint: 20,
@@ -139,6 +142,12 @@ const PHASE_THEME = {
         color: "#ff4f63",
         bg: "radial-gradient(circle at 20% 14%, #ff7a75 0%, #a91931 44%, #19050b 100%)",
         overlay: 0.9,
+        cooldownGlow: 0
+    },
+    recovery: {
+        color: "#7bb6ff",
+        bg: "radial-gradient(circle at 20% 14%, #8dd3ff 0%, #2a5f9b 44%, #091428 100%)",
+        overlay: 0.06,
         cooldownGlow: 0
     },
     cooldown: {
@@ -188,6 +197,16 @@ let homeRange = 7;
 let storageBackend = "local";
 let toastTimer = null;
 let connectionAlerted = false;
+let sessionProtocolId = currentMethodologyId;
+let sessionProtocolLabel = METHODOLOGIES[currentMethodologyId].name;
+
+const statsState = {
+    user: selectedUser,
+    metric: "calories",
+    range: 30,
+    equipment: "all",
+    protocol: "all"
+};
 
 const ui = {
     body: document.body,
@@ -199,12 +218,13 @@ const ui = {
     instr: document.getElementById('instruction'),
     startBtn: document.getElementById('btn-start'),
     pauseBtn: document.getElementById('btn-pause'),
+    backBtn: document.getElementById('btn-back'),
     logBtn: document.getElementById('btn-log'),
-    restartBtn: document.getElementById('btn-restart'),
     progress: document.getElementById('progress-bar'),
     voiceToggleWrap: document.getElementById('voice-toggle-wrap'),
     voiceToggle: document.getElementById('voice-toggle'),
     introVoiceBtn: document.getElementById('intro-voice-link'),
+    voiceStateText: document.getElementById('voice-state-text'),
     settingsWrap: document.getElementById('settings-wrap'),
     settingsPanel: document.getElementById('settings-panel'),
     watchTime: document.getElementById('watch-time'),
@@ -217,7 +237,18 @@ const ui = {
     homeList: document.getElementById('home-performances-list'),
     homeRangeTabs: document.getElementById('home-range-tabs'),
     storageBadge: document.getElementById('storage-badge'),
-    toast: document.getElementById('toast')
+    toast: document.getElementById('toast'),
+    statsPage: document.getElementById('stats-page'),
+    statsUserSelect: document.getElementById('stats-user-select'),
+    statsMetricSelect: document.getElementById('stats-metric-select'),
+    statsRangeSelect: document.getElementById('stats-range-select'),
+    statsEquipmentToggles: document.getElementById('stats-equipment-toggles'),
+    statsProtocolToggles: document.getElementById('stats-protocol-toggles'),
+    statsLineTitle: document.getElementById('stats-line-title'),
+    statsSummaryList: document.getElementById('stats-summary-list'),
+    statsSessionsList: document.getElementById('stats-sessions-list'),
+    statsLineCanvas: document.getElementById('stats-line-canvas'),
+    statsMixCanvas: document.getElementById('stats-mix-canvas')
 };
 
 const logUi = {
@@ -227,6 +258,7 @@ const logUi = {
     avgHr: document.getElementById('log-avg-hr'),
     metricsWrap: document.getElementById('log-metrics'),
     userContext: document.getElementById('log-user-context'),
+    protocolContext: document.getElementById('log-protocol-context'),
     list: document.getElementById('recent-logs-list')
 };
 
@@ -234,6 +266,7 @@ function cloneSettings(settings) {
     return {
         warmup: settings.warmup,
         cooldown: settings.cooldown,
+        blockRest: settings.blockRest,
         easy: settings.easy,
         steady: settings.steady,
         sprint: settings.sprint,
@@ -247,6 +280,7 @@ function normalizeSettings(raw, fallback = METHODOLOGIES.copenhagen.settings) {
     return {
         warmup: Math.max(0, parseInt(source.warmup, 10) || fallback.warmup),
         cooldown: Math.max(0, parseInt(source.cooldown, 10) || fallback.cooldown),
+        blockRest: Math.max(0, parseInt(source.blockRest, 10) || fallback.blockRest),
         easy: Math.max(1, parseInt(source.easy, 10) || fallback.easy),
         steady: Math.max(1, parseInt(source.steady, 10) || fallback.steady),
         sprint: Math.max(1, parseInt(source.sprint, 10) || fallback.sprint),
@@ -262,7 +296,8 @@ function persistPreferences() {
             voiceMuted,
             homeRange,
             workoutSettings,
-            currentMethodologyId
+            currentMethodologyId,
+            statsState
         };
         localStorage.setItem(PREFS_KEY, JSON.stringify(payload));
     } catch {
@@ -282,6 +317,13 @@ function loadPreferences() {
         workoutSettings = normalizeSettings(parsed.workoutSettings, METHODOLOGIES.copenhagen.settings);
         currentMethodologyId = detectMethodology(workoutSettings);
         pendingMethodologyId = currentMethodologyId;
+        if (parsed.statsState && typeof parsed.statsState === 'object') {
+            statsState.user = sanitizeUser(parsed.statsState.user || selectedUser);
+            statsState.metric = parsed.statsState.metric || statsState.metric;
+            statsState.range = parsed.statsState.range === 'all' ? 'all' : Math.max(1, parseInt(parsed.statsState.range, 10) || 30);
+            statsState.equipment = parsed.statsState.equipment || 'all';
+            statsState.protocol = parsed.statsState.protocol || 'all';
+        }
     } catch {
         // Ignore malformed preference payloads.
     }
@@ -306,6 +348,23 @@ function sanitizeInstrument(value) {
     return 'running';
 }
 
+function sanitizeProtocol(value) {
+    const normalized = String(value || '').toLowerCase();
+    if (METHODOLOGIES[normalized]) return normalized;
+    if (normalized === 'custom') return 'custom';
+    return 'unknown';
+}
+
+function getProtocolLabel(protocolId, fallbackLabel) {
+    const id = sanitizeProtocol(protocolId);
+    if (fallbackLabel && typeof fallbackLabel === 'string' && fallbackLabel.trim()) {
+        return fallbackLabel.trim();
+    }
+    if (METHODOLOGIES[id]) return METHODOLOGIES[id].name;
+    if (id === 'custom') return 'Custom';
+    return 'Unknown';
+}
+
 function createBlock(settings) {
     const steps = [];
     for (let i = 0; i < settings.rounds; i++) {
@@ -313,7 +372,7 @@ function createBlock(settings) {
             time: settings.easy,
             phase: "EASY",
             theme: "easy",
-            speech: "Recover. Easy spin.",
+            speech: "Recover. Easy effort.",
             instr: "Recover and control breathing"
         });
         steps.push({
@@ -345,6 +404,15 @@ function buildTimeline(settings) {
 
     for (let i = 0; i < settings.blocks; i++) {
         tl = tl.concat(createBlock(settings));
+        if (i < settings.blocks - 1 && settings.blockRest > 0) {
+            tl.push({
+                time: settings.blockRest,
+                phase: "RECOVERY",
+                theme: "recovery",
+                speech: "Recovery block. Breathe.",
+                instr: "Easy recovery before next block"
+            });
+        }
     }
 
     tl.push({
@@ -372,6 +440,7 @@ function detectMethodology(settings) {
         if (
             preset.settings.warmup === settings.warmup &&
             preset.settings.cooldown === settings.cooldown &&
+            preset.settings.blockRest === settings.blockRest &&
             preset.settings.easy === settings.easy &&
             preset.settings.steady === settings.steady &&
             preset.settings.sprint === settings.sprint &&
@@ -433,6 +502,9 @@ function syncUserUi() {
     ui.introUserSelect.value = selectedUser;
     logUi.userContext.innerText = `User: ${selectedUser}`;
     ui.homeStatsUser.innerText = selectedUser;
+    if (ui.statsUserSelect) {
+        ui.statsUserSelect.value = sanitizeUser(statsState.user || selectedUser);
+    }
     renderHomeStats(cachedLogs);
 }
 
@@ -492,12 +564,10 @@ function startTimerLoop() {
 }
 
 function showWorkoutControls() {
-    ui.voiceToggleWrap.classList.remove('hidden');
     ui.settingsWrap.classList.add('hidden');
 }
 
 function showHomeControls() {
-    ui.voiceToggleWrap.classList.add('hidden');
     ui.settingsWrap.classList.remove('hidden');
 }
 
@@ -513,13 +583,16 @@ function startWorkout() {
     isRunning = true;
     isPaused = false;
     sessionLogged = false;
+    sessionProtocolId = currentMethodologyId;
+    sessionProtocolLabel = getProtocolLabel(currentMethodologyId);
 
     ui.intro.classList.add('hidden');
     ui.startBtn.classList.add('hidden');
     ui.pauseBtn.classList.remove('hidden');
-    ui.restartBtn.classList.remove('hidden');
-    ui.pauseBtn.innerText = "PAUSE";
+    ui.backBtn.classList.remove('hidden');
+    ui.pauseBtn.innerText = "Pause";
     ui.settingsPanel.classList.add('hidden');
+    closeStatsPage();
 
     showWorkoutControls();
 
@@ -535,13 +608,13 @@ function endWorkout() {
 
     speak("Workout complete.");
 
-    ui.phase.innerText = "DONE";
+    ui.phase.innerText = "Done";
     ui.timer.innerText = "0:00";
     ui.pauseBtn.classList.add('hidden');
     ui.logBtn.classList.add('hidden');
-    ui.restartBtn.classList.remove('hidden');
+    ui.backBtn.classList.remove('hidden');
     ui.startBtn.classList.remove('hidden');
-    ui.startBtn.innerText = "START AGAIN";
+    ui.startBtn.innerText = "Start Again";
 
     showHomeControls();
 
@@ -557,12 +630,12 @@ function togglePause() {
 
     if (isPaused) {
         clearInterval(timerInterval);
-        ui.pauseBtn.innerText = "RESUME";
+        ui.pauseBtn.innerText = "Resume";
         speak("Paused.");
         return;
     }
 
-    ui.pauseBtn.innerText = "PAUSE";
+    ui.pauseBtn.innerText = "Pause";
     speak("Resumed.");
     startTimerLoop();
 }
@@ -582,12 +655,12 @@ function resetWorkout(fullReset = false) {
     }
 
     ui.startBtn.classList.remove('hidden');
-    ui.startBtn.innerText = "START SESSION";
+    ui.startBtn.innerText = "Start Session";
     ui.pauseBtn.classList.add('hidden');
     ui.logBtn.classList.add('hidden');
-    ui.restartBtn.classList.add('hidden');
+    ui.backBtn.classList.add('hidden');
 
-    ui.phase.innerText = "READY";
+    ui.phase.innerText = "Ready";
     ui.timer.innerText = formatClock(totalTime);
     ui.instr.innerText = "Turn up volume and tap start.";
     ui.progress.style.width = "0%";
@@ -602,7 +675,7 @@ function resetWorkout(fullReset = false) {
     showHomeControls();
 }
 
-function restartWorkout() {
+function goHomeFromWorkout() {
     resetWorkout(true);
 }
 
@@ -620,7 +693,9 @@ function toggleSettings(forceOpen) {
 
 function syncVoiceUi() {
     ui.voiceToggle.checked = voiceMuted;
-    ui.introVoiceBtn.innerText = voiceMuted ? "VOICE: OFF" : "VOICE: ON";
+    if (ui.voiceStateText) {
+        ui.voiceStateText.innerText = voiceMuted ? "Off" : "On";
+    }
 }
 
 function toggleVoiceMute() {
@@ -687,6 +762,35 @@ function formatDuration(seconds) {
     const s = total % 60;
     if (m <= 0) return `${s}s`;
     return `${m}m ${s}s`;
+}
+
+function normalizeLogEntry(entry) {
+    const user = sanitizeUser(entry.user);
+    const instrument = sanitizeInstrument(entry.instrument);
+    const protocolId = sanitizeProtocol(entry.protocolId || entry.protocol || 'unknown');
+    const protocolLabel = getProtocolLabel(protocolId, entry.protocolLabel);
+    return {
+        ...entry,
+        user,
+        instrument,
+        protocolId,
+        protocolLabel,
+        calories: Math.max(0, Number(entry.calories || 0)),
+        avgHr: Math.max(0, Number(entry.avgHr || 0)),
+        durationSec: Math.max(0, Number(entry.durationSec || 0)),
+        metrics: entry.metrics && typeof entry.metrics === 'object' ? entry.metrics : {}
+    };
+}
+
+function getDistanceKm(entry) {
+    const instrument = sanitizeInstrument(entry.instrument);
+    const metrics = entry.metrics || {};
+    if (instrument === 'rowing') {
+        const meters = Number(metrics.distanceM);
+        return Number.isFinite(meters) ? meters / 1000 : 0;
+    }
+    const km = Number(metrics.distanceKm);
+    return Number.isFinite(km) ? km : 0;
 }
 
 function toDayKey(value) {
@@ -809,12 +913,14 @@ function renderHomeStats(logs) {
         const metricSummary = formatMetricSummary(instrument, entry.metrics || {});
         const calories = Number(entry.calories) || 0;
         const duration = formatDuration(Number(entry.durationSec) || 0);
+        const hrText = Number(entry.avgHr) > 0 ? `${Number(entry.avgHr)} bpm` : "--";
+        const protocolText = getProtocolLabel(entry.protocolId, entry.protocolLabel);
 
         const li = document.createElement('li');
         li.innerHTML = `
             <div class="row-top"><span>${formatEntryDate(entry.date)}</span><span>${duration}</span></div>
             <div class="row-main"><span>${capitalize(instrument)}</span><span>${calories} cal</span></div>
-            <div class="row-sub">${metricSummary || 'No extra metrics'}</div>
+            <div class="row-sub">HR ${hrText} | ${protocolText}${metricSummary ? ` | ${metricSummary}` : ''}</div>
         `;
         ui.homeList.appendChild(li);
     });
@@ -838,8 +944,9 @@ function renderLogs(logs) {
         const instrument = sanitizeInstrument(entry.instrument || 'running');
         const date = new Date(entry.date).toLocaleDateString();
         const metricSummary = formatMetricSummary(instrument, entry.metrics || {});
+        const protocolText = getProtocolLabel(entry.protocolId, entry.protocolLabel);
 
-        li.innerText = `${date} - ${user} - ${capitalize(instrument)} - ${entry.calories || 0} cal - ${entry.avgHr || 0} avg HR${metricSummary ? ` - ${metricSummary}` : ""}`;
+        li.innerText = `${date} - ${user} - ${capitalize(instrument)} - ${entry.calories || 0} cal - ${entry.avgHr || 0} avg HR - ${protocolText}${metricSummary ? ` - ${metricSummary}` : ""}`;
         logUi.list.appendChild(li);
     });
 }
@@ -850,11 +957,12 @@ async function fetchLogs() {
         if (!res.ok) throw new Error('Failed to fetch logs');
         const logs = await res.json();
         if (!Array.isArray(logs)) return [];
+        const normalized = logs.map(normalizeLogEntry);
         if (storageBackend === 'offline') {
             setStorageBadge('local');
         }
         connectionAlerted = false;
-        return logs;
+        return normalized;
     } catch (err) {
         console.error(err);
         setStorageBadge('offline');
@@ -887,6 +995,309 @@ async function refreshLogs() {
     cachedLogs = await fetchLogs();
     renderLogs(cachedLogs);
     renderHomeStats(cachedLogs);
+    renderStatsPage();
+}
+
+function openStatsPage() {
+    if (!ui.statsPage) return;
+    ui.statsPage.classList.remove('hidden');
+    renderStatsPage();
+}
+
+function closeStatsPage() {
+    if (!ui.statsPage) return;
+    ui.statsPage.classList.add('hidden');
+}
+
+function buildChip(container, value, label, current, onSelect) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'filter-chip';
+    btn.innerText = label;
+    btn.classList.toggle('active', current === value);
+    btn.addEventListener('click', () => onSelect(value));
+    container.appendChild(btn);
+}
+
+function renderStatsEquipmentToggles() {
+    if (!ui.statsEquipmentToggles) return;
+    ui.statsEquipmentToggles.innerHTML = '';
+    buildChip(ui.statsEquipmentToggles, 'all', 'All', statsState.equipment, (value) => {
+        statsState.equipment = value;
+        renderStatsPage();
+        persistPreferences();
+    });
+    ['running', 'rowing', 'riding', 'spin'].forEach((eq) => {
+        buildChip(ui.statsEquipmentToggles, eq, capitalize(eq), statsState.equipment, (value) => {
+            statsState.equipment = value;
+            renderStatsPage();
+            persistPreferences();
+        });
+    });
+}
+
+function protocolOptionsFromLogs(logs) {
+    const found = new Set(logs.map((entry) => sanitizeProtocol(entry.protocolId)));
+    const ordered = ['copenhagen', 'norwegian', 'tabata', 'custom', 'unknown'];
+    const options = ['all'];
+    ordered.forEach((id) => {
+        if (id === 'unknown' && !found.has('unknown')) return;
+        if (id !== 'custom' && id !== 'unknown' && !found.has(id) && !METHODOLOGIES[id]) return;
+        options.push(id);
+    });
+    return options;
+}
+
+function protocolLabelForFilter(id) {
+    if (id === 'all') return 'All';
+    if (METHODOLOGIES[id]) return METHODOLOGIES[id].name;
+    if (id === 'custom') return 'Custom';
+    return 'Unknown';
+}
+
+function renderStatsProtocolToggles(logs) {
+    if (!ui.statsProtocolToggles) return;
+    const options = protocolOptionsFromLogs(logs);
+    if (!options.includes(statsState.protocol)) statsState.protocol = 'all';
+    ui.statsProtocolToggles.innerHTML = '';
+    options.forEach((id) => {
+        buildChip(ui.statsProtocolToggles, id, protocolLabelForFilter(id), statsState.protocol, (value) => {
+            statsState.protocol = value;
+            renderStatsPage();
+            persistPreferences();
+        });
+    });
+}
+
+function getStatsFilteredLogs() {
+    return cachedLogs
+        .filter((entry) => sanitizeUser(entry.user) === statsState.user)
+        .filter((entry) => inRange(entry.date, statsState.range))
+        .filter((entry) => statsState.equipment === 'all' || sanitizeInstrument(entry.instrument) === statsState.equipment)
+        .filter((entry) => statsState.protocol === 'all' || sanitizeProtocol(entry.protocolId) === statsState.protocol)
+        .slice()
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+}
+
+function getMetricValue(entry, metric) {
+    if (metric === 'calories') return Number(entry.calories) || 0;
+    if (metric === 'avgHr') return Number(entry.avgHr) || 0;
+    if (metric === 'durationSec') return (Number(entry.durationSec) || 0) / 60;
+    if (metric === 'distance') return getDistanceKm(entry);
+    return 0;
+}
+
+function getMetricLabel(metric) {
+    if (metric === 'calories') return 'Calories';
+    if (metric === 'avgHr') return 'Avg Heart Rate';
+    if (metric === 'durationSec') return 'Duration (min)';
+    if (metric === 'distance') return 'Distance (km)';
+    return 'Metric';
+}
+
+function setupCanvas(canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const width = Math.max(300, Math.floor(rect.width));
+    const height = Math.max(200, Math.floor(rect.height));
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, width, height };
+}
+
+function drawNoData(canvas, text) {
+    const { ctx, width, height } = setupCanvas(canvas);
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = 'rgba(230,239,255,0.65)';
+    ctx.font = '13px Manrope';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, width / 2, height / 2);
+}
+
+function drawLineChart(canvas, entries, metric) {
+    if (!entries.length) {
+        drawNoData(canvas, 'No data for filters');
+        return;
+    }
+
+    const points = entries.map((entry) => ({
+        x: new Date(entry.date).getTime(),
+        y: getMetricValue(entry, metric)
+    })).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+
+    if (!points.length) {
+        drawNoData(canvas, 'No numeric values');
+        return;
+    }
+
+    const { ctx, width, height } = setupCanvas(canvas);
+    const left = 44;
+    const right = 14;
+    const top = 14;
+    const bottom = 30;
+
+    const minX = Math.min(...points.map((p) => p.x));
+    const maxX = Math.max(...points.map((p) => p.x));
+    const minYRaw = Math.min(...points.map((p) => p.y));
+    const maxYRaw = Math.max(...points.map((p) => p.y));
+    const minY = Math.min(0, minYRaw);
+    const maxY = maxYRaw === minY ? minY + 1 : maxYRaw;
+
+    const xScale = (value) => {
+        if (maxX === minX) return left + ((width - left - right) / 2);
+        return left + ((value - minX) / (maxX - minX)) * (width - left - right);
+    };
+    const yScale = (value) => top + ((maxY - value) / (maxY - minY)) * (height - top - bottom);
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.strokeStyle = 'rgba(195,214,246,0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(left, top);
+    ctx.lineTo(left, height - bottom);
+    ctx.lineTo(width - right, height - bottom);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(117,219,255,0.95)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    points.forEach((point, index) => {
+        const x = xScale(point.x);
+        const y = yScale(point.y);
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    ctx.fillStyle = '#7ad9ff';
+    points.forEach((point) => {
+        const x = xScale(point.x);
+        const y = yScale(point.y);
+        ctx.beginPath();
+        ctx.arc(x, y, 2.8, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    ctx.fillStyle = 'rgba(230,239,255,0.7)';
+    ctx.font = '11px Manrope';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${maxY.toFixed(1)}`, 6, yScale(maxY) + 4);
+    ctx.fillText(`${minY.toFixed(1)}`, 6, yScale(minY) + 4);
+}
+
+function drawBarChart(canvas, entries) {
+    const counts = { running: 0, rowing: 0, riding: 0, spin: 0 };
+    entries.forEach((entry) => {
+        const instrument = sanitizeInstrument(entry.instrument);
+        if (counts[instrument] !== undefined) counts[instrument] += 1;
+    });
+
+    const labels = Object.keys(counts);
+    const values = labels.map((label) => counts[label]);
+    const total = values.reduce((sum, v) => sum + v, 0);
+    if (!total) {
+        drawNoData(canvas, 'No sessions for filters');
+        return;
+    }
+
+    const { ctx, width, height } = setupCanvas(canvas);
+    const left = 40;
+    const right = 12;
+    const top = 18;
+    const bottom = 30;
+    const maxY = Math.max(...values, 1);
+    const chartWidth = width - left - right;
+    const chartHeight = height - top - bottom;
+    const slot = chartWidth / labels.length;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.strokeStyle = 'rgba(195,214,246,0.25)';
+    ctx.beginPath();
+    ctx.moveTo(left, top);
+    ctx.lineTo(left, height - bottom);
+    ctx.lineTo(width - right, height - bottom);
+    ctx.stroke();
+
+    labels.forEach((label, index) => {
+        const val = values[index];
+        const barHeight = (val / maxY) * chartHeight;
+        const x = left + index * slot + slot * 0.18;
+        const y = height - bottom - barHeight;
+        const w = slot * 0.64;
+        ctx.fillStyle = 'rgba(117,219,255,0.85)';
+        ctx.fillRect(x, y, w, barHeight);
+        ctx.fillStyle = 'rgba(230,239,255,0.75)';
+        ctx.textAlign = 'center';
+        ctx.font = '11px Manrope';
+        ctx.fillText(String(val), x + (w / 2), y - 6);
+        ctx.fillText(capitalize(label), x + (w / 2), height - 8);
+    });
+}
+
+function renderStatsSummary(entries) {
+    if (!ui.statsSummaryList) return;
+    ui.statsSummaryList.innerHTML = '';
+    if (!entries.length) {
+        const li = document.createElement('li');
+        li.innerText = 'No sessions for current filters.';
+        ui.statsSummaryList.appendChild(li);
+        return;
+    }
+    const total = entries.length;
+    const totalCalories = entries.reduce((sum, e) => sum + (Number(e.calories) || 0), 0);
+    const avgHrEntries = entries.filter((e) => Number(e.avgHr) > 0);
+    const avgHr = avgHrEntries.length ? Math.round(avgHrEntries.reduce((sum, e) => sum + Number(e.avgHr), 0) / avgHrEntries.length) : 0;
+    const totalDistance = entries.reduce((sum, e) => sum + getDistanceKm(e), 0);
+    const totalMinutes = entries.reduce((sum, e) => sum + ((Number(e.durationSec) || 0) / 60), 0);
+
+    [
+        `Sessions: ${total}`,
+        `Total minutes: ${Math.round(totalMinutes)}`,
+        `Total calories: ${Math.round(totalCalories)}`,
+        `Average HR: ${avgHr || '--'} bpm`,
+        `Total distance: ${totalDistance.toFixed(1)} km`
+    ].forEach((row) => {
+        const li = document.createElement('li');
+        li.innerText = row;
+        ui.statsSummaryList.appendChild(li);
+    });
+}
+
+function renderStatsSessions(entries) {
+    if (!ui.statsSessionsList) return;
+    ui.statsSessionsList.innerHTML = '';
+    if (!entries.length) {
+        const li = document.createElement('li');
+        li.innerText = 'No matching sessions.';
+        ui.statsSessionsList.appendChild(li);
+        return;
+    }
+    entries.slice().reverse().slice(0, 40).forEach((entry) => {
+        const li = document.createElement('li');
+        const date = new Date(entry.date).toLocaleDateString();
+        const protocolText = getProtocolLabel(entry.protocolId, entry.protocolLabel);
+        li.innerText = `${date} - ${capitalize(sanitizeInstrument(entry.instrument))} - ${entry.calories || 0} cal - ${entry.avgHr || '--'} bpm - ${protocolText}`;
+        ui.statsSessionsList.appendChild(li);
+    });
+}
+
+function renderStatsPage() {
+    if (!ui.statsPage) return;
+    if (ui.statsUserSelect) ui.statsUserSelect.value = statsState.user;
+    if (ui.statsMetricSelect) ui.statsMetricSelect.value = statsState.metric;
+    if (ui.statsRangeSelect) ui.statsRangeSelect.value = String(statsState.range);
+
+    renderStatsEquipmentToggles();
+    renderStatsProtocolToggles(cachedLogs);
+
+    const filtered = getStatsFilteredLogs();
+    if (ui.statsLineTitle) ui.statsLineTitle.innerText = `${getMetricLabel(statsState.metric)} Trend`;
+    if (ui.statsLineCanvas) drawLineChart(ui.statsLineCanvas, filtered, statsState.metric);
+    if (ui.statsMixCanvas) drawBarChart(ui.statsMixCanvas, filtered);
+    renderStatsSummary(filtered);
+    renderStatsSessions(filtered);
 }
 
 function renderLogMetrics(instrument, values = {}) {
@@ -948,6 +1359,9 @@ function showLogModal() {
     logUi.calories.value = '';
     logUi.avgHr.value = '';
     syncUserUi();
+    if (logUi.protocolContext) {
+        logUi.protocolContext.innerText = `Protocol: ${sessionProtocolLabel}`;
+    }
     renderLogMetrics(logUi.instrument.value);
     renderLogs(cachedLogs);
 }
@@ -965,6 +1379,8 @@ async function saveWorkoutLog() {
         instrument,
         calories: parseInt(logUi.calories.value || '0', 10),
         avgHr: parseInt(logUi.avgHr.value || '0', 10),
+        protocolId: sanitizeProtocol(sessionProtocolId),
+        protocolLabel: sessionProtocolLabel,
         metrics: collectLogMetrics()
     };
 
@@ -999,6 +1415,7 @@ function refreshSettingsInputs() {
 function populateSettingsInputs(settings) {
     document.getElementById('set-warmup').value = settings.warmup;
     document.getElementById('set-cooldown').value = settings.cooldown;
+    document.getElementById('set-block-rest').value = settings.blockRest;
     document.getElementById('set-easy').value = settings.easy;
     document.getElementById('set-steady').value = settings.steady;
     document.getElementById('set-sprint').value = settings.sprint;
@@ -1010,6 +1427,7 @@ function readSettingsInputs() {
     return {
         warmup: Math.max(0, parseInt(document.getElementById('set-warmup').value, 10) || 0),
         cooldown: Math.max(0, parseInt(document.getElementById('set-cooldown').value, 10) || 0),
+        blockRest: Math.max(0, parseInt(document.getElementById('set-block-rest').value, 10) || 0),
         easy: Math.max(1, parseInt(document.getElementById('set-easy').value, 10) || 30),
         steady: Math.max(1, parseInt(document.getElementById('set-steady').value, 10) || 20),
         sprint: Math.max(1, parseInt(document.getElementById('set-sprint').value, 10) || 10),
@@ -1020,7 +1438,8 @@ function readSettingsInputs() {
 
 function computeTotalTime(settings) {
     const block = (settings.easy + settings.steady + settings.sprint) * settings.rounds;
-    return settings.warmup + settings.cooldown + (block * settings.blocks);
+    const rests = settings.blockRest * Math.max(0, settings.blocks - 1);
+    return settings.warmup + settings.cooldown + (block * settings.blocks) + rests;
 }
 
 function updateWatchDurationPreview() {
@@ -1060,9 +1479,35 @@ logUi.instrument.addEventListener('change', (e) => {
 
 ui.introUserSelect.addEventListener('change', (e) => {
     selectedUser = sanitizeUser(e.target.value);
+    statsState.user = selectedUser;
     syncUserUi();
     persistPreferences();
 });
+
+if (ui.statsUserSelect) {
+    ui.statsUserSelect.addEventListener('change', (e) => {
+        statsState.user = sanitizeUser(e.target.value);
+        renderStatsPage();
+        persistPreferences();
+    });
+}
+
+if (ui.statsMetricSelect) {
+    ui.statsMetricSelect.addEventListener('change', (e) => {
+        statsState.metric = e.target.value;
+        renderStatsPage();
+        persistPreferences();
+    });
+}
+
+if (ui.statsRangeSelect) {
+    ui.statsRangeSelect.addEventListener('change', (e) => {
+        const raw = e.target.value;
+        statsState.range = raw === 'all' ? 'all' : Math.max(1, parseInt(raw, 10) || 30);
+        renderStatsPage();
+        persistPreferences();
+    });
+}
 
 document.querySelector('.watch-shell').addEventListener('keydown', (e) => {
     const targetTag = e.target && e.target.tagName ? e.target.tagName.toLowerCase() : "";
@@ -1074,7 +1519,7 @@ document.querySelector('.watch-shell').addEventListener('keydown', (e) => {
     }
 });
 
-['set-warmup', 'set-cooldown', 'set-easy', 'set-steady', 'set-sprint', 'set-rounds', 'set-blocks'].forEach((id) => {
+['set-warmup', 'set-cooldown', 'set-block-rest', 'set-easy', 'set-steady', 'set-sprint', 'set-rounds', 'set-blocks'].forEach((id) => {
     const input = document.getElementById(id);
     input.addEventListener('input', () => {
         const pending = readSettingsInputs();
@@ -1124,10 +1569,21 @@ document.addEventListener('keydown', (event) => {
     }
     if (!ui.settingsPanel.classList.contains('hidden')) {
         toggleSettings(false);
+        return;
+    }
+    if (ui.statsPage && !ui.statsPage.classList.contains('hidden')) {
+        closeStatsPage();
+    }
+});
+
+window.addEventListener('resize', () => {
+    if (ui.statsPage && !ui.statsPage.classList.contains('hidden')) {
+        renderStatsPage();
     }
 });
 
 loadPreferences();
+statsState.user = sanitizeUser(statsState.user || selectedUser);
 timeline = buildTimeline(workoutSettings);
 totalTime = timeline.reduce((sum, step) => sum + step.time, 0);
 currentIndex = 0;

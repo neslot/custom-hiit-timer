@@ -61,6 +61,25 @@ function sanitizeUser(value) {
   return 'Toby';
 }
 
+function sanitizeProtocolId(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (normalized === 'copenhagen' || normalized === 'norwegian' || normalized === 'tabata' || normalized === 'custom') {
+    return normalized;
+  }
+  return 'unknown';
+}
+
+function sanitizeProtocolLabel(value, protocolId) {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim().slice(0, 80);
+  }
+  if (protocolId === 'copenhagen') return 'University of Copenhagen';
+  if (protocolId === 'norwegian') return 'Norwegian 4x4 Style';
+  if (protocolId === 'tabata') return 'Tabata';
+  if (protocolId === 'custom') return 'Custom';
+  return 'Unknown';
+}
+
 function sanitizeMetrics(instrument, metrics) {
   const source = metrics && typeof metrics === 'object' ? metrics : {};
 
@@ -200,12 +219,16 @@ app.post('/api/logs', async (req, res) => {
   const payload = req.body || {};
   const instrument = sanitizeInstrument(payload.instrument);
   const user = sanitizeUser(payload.user);
+  const protocolId = sanitizeProtocolId(payload.protocolId || payload.protocol);
+  const protocolLabel = sanitizeProtocolLabel(payload.protocolLabel, protocolId);
 
   const entry = {
     date: payload.date || new Date().toISOString(),
     durationSec: Math.max(0, Number(payload.durationSec || 0)),
     user,
     instrument,
+    protocolId,
+    protocolLabel,
     calories: Math.max(0, Number(payload.calories || 0)),
     avgHr: Math.max(0, Number(payload.avgHr || 0)),
     metrics: sanitizeMetrics(instrument, payload.metrics)

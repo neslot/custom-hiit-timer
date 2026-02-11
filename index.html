@@ -16,8 +16,14 @@
 
     <div id="intro">
         <header class="intro-topbar">
-            <button id="intro-voice-link" class="pill-btn secondary" onclick="event.stopPropagation(); toggleVoiceMute();">VOICE: ON</button>
-            <button id="intro-settings-link" class="pill-btn secondary" onclick="event.stopPropagation(); toggleSettings(true);">SETTINGS</button>
+            <button id="intro-voice-link" class="top-action" onclick="event.stopPropagation(); toggleVoiceMute();">
+                <span class="top-label">Voice</span>
+                <span id="voice-state-text">On</span>
+            </button>
+            <div class="top-right-actions">
+                <button id="intro-stats-link" class="top-action" onclick="event.stopPropagation(); openStatsPage();">Stats</button>
+                <button id="intro-settings-link" class="top-action" onclick="event.stopPropagation(); toggleSettings(true);">Settings</button>
+            </div>
         </header>
 
         <div class="intro-layout">
@@ -38,7 +44,7 @@
                     </div>
 
                     <div class="intro-actions">
-                        <button id="intro-start" class="pill-btn primary" onclick="event.stopPropagation(); startWorkout();">START SESSION</button>
+                        <button id="intro-start" class="pill-btn primary" onclick="event.stopPropagation(); startWorkout();">Start Session</button>
                     </div>
                 </div>
             </section>
@@ -66,7 +72,11 @@
     <div id="cooldown-overlay"></div>
     <div id="progress-container"><div id="progress-bar"></div></div>
 
-    <div id="settings-wrap"><button id="btn-settings" class="pill-btn secondary" onclick="toggleSettings()">SETTINGS</button></div>
+    <div id="settings-wrap">
+        <button id="btn-stats" class="top-action" onclick="openStatsPage()">Stats</button>
+        <button id="btn-settings" class="top-action" onclick="toggleSettings()">Settings</button>
+    </div>
+
     <label id="voice-toggle-wrap" class="hidden"><input id="voice-toggle" type="checkbox">Mute Voice</label>
 
     <div id="settings-panel" class="hidden">
@@ -78,6 +88,7 @@
         <div class="settings-grid">
             <label>Warm Up (sec)<input id="set-warmup" type="number" min="0" step="5"></label>
             <label>Cool Down (sec)<input id="set-cooldown" type="number" min="0" step="5"></label>
+            <label>Block Recovery (sec)<input id="set-block-rest" type="number" min="0" step="5"></label>
             <label>Easy (sec)<input id="set-easy" type="number" min="1" step="1"></label>
             <label>Steady (sec)<input id="set-steady" type="number" min="1" step="1"></label>
             <label>Sprint (sec)<input id="set-sprint" type="number" min="1" step="1"></label>
@@ -95,6 +106,7 @@
         <div class="card">
             <h3>Log This Session</h3>
             <p id="log-user-context">User: Toby</p>
+            <p id="log-protocol-context">Protocol: University of Copenhagen</p>
             <div class="log-grid">
                 <label>Equipment
                     <select id="log-instrument">
@@ -123,16 +135,83 @@
         </div>
     </div>
 
-    <div id="phase">READY</div>
+    <div id="stats-page" class="hidden">
+        <div class="stats-page-shell">
+            <header class="stats-header">
+                <button class="pill-btn ghost" onclick="closeStatsPage()">Back</button>
+                <h2>Performance Stats</h2>
+            </header>
+
+            <div class="stats-filter-grid">
+                <label>User
+                    <select id="stats-user-select">
+                        <option value="Toby">Toby</option>
+                        <option value="Anna">Anna</option>
+                    </select>
+                </label>
+                <label>Metric
+                    <select id="stats-metric-select">
+                        <option value="calories">Calories</option>
+                        <option value="avgHr">Avg HR</option>
+                        <option value="durationSec">Duration</option>
+                        <option value="distance">Distance</option>
+                    </select>
+                </label>
+                <label>Range
+                    <select id="stats-range-select">
+                        <option value="7">Last 7 days</option>
+                        <option value="30" selected>Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                        <option value="all">All time</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="stats-toggle-group">
+                <span>Equipment</span>
+                <div id="stats-equipment-toggles" class="chip-row"></div>
+            </div>
+
+            <div class="stats-toggle-group">
+                <span>Protocol</span>
+                <div id="stats-protocol-toggles" class="chip-row"></div>
+            </div>
+
+            <div class="stats-cards">
+                <section class="stats-card">
+                    <h3 id="stats-line-title">Trend</h3>
+                    <canvas id="stats-line-canvas" width="900" height="320"></canvas>
+                </section>
+
+                <section class="stats-card">
+                    <h3>Sessions by Equipment</h3>
+                    <canvas id="stats-mix-canvas" width="900" height="280"></canvas>
+                </section>
+
+                <section class="stats-card">
+                    <h3>Summary</h3>
+                    <ul id="stats-summary-list" class="stats-list"></ul>
+                </section>
+
+                <section class="stats-card">
+                    <h3>Filtered Sessions</h3>
+                    <ul id="stats-sessions-list" class="stats-list stats-sessions"></ul>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <div id="phase">Ready</div>
     <div id="timer">15:00</div>
     <div id="instruction">Turn up volume and tap start.</div>
 
     <div id="controls">
-        <button id="btn-start" class="pill-btn primary" onclick="startWorkout()">START SESSION</button>
-        <button id="btn-pause" class="pill-btn secondary hidden" onclick="togglePause()">PAUSE</button>
-        <button id="btn-log" class="pill-btn accent hidden" onclick="showLogModal()">LOG</button>
-        <button id="btn-restart" class="round-btn hidden" onclick="restartWorkout()" title="Restart">&#x21bb;</button>
+        <button id="btn-back" class="pill-btn secondary hidden" onclick="goHomeFromWorkout()">Back</button>
+        <button id="btn-start" class="pill-btn primary controls-main" onclick="startWorkout()">Start Session</button>
+        <button id="btn-pause" class="pill-btn primary controls-main hidden" onclick="togglePause()">Pause</button>
+        <button id="btn-log" class="pill-btn accent hidden" onclick="showLogModal()">Log Session</button>
     </div>
+
     <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
     <script src="./app.js"></script>
