@@ -94,6 +94,61 @@ function sanitizeProtocolLabel(value, protocolId) {
   return 'Unknown';
 }
 
+function createLogId() {
+  return `log_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function sanitizeLogId(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return trimmed.slice(0, 80);
+}
+
+function sanitizeCalories(value) {
+  const n = toFiniteNumber(value);
+  if (n === null) return 0;
+  return Math.max(0, Math.round(n));
+}
+
+function sanitizeAvgHr(value) {
+  const n = toFiniteNumber(value);
+  if (n === null || n <= 0) return null;
+  return Math.round(n);
+}
+
+function sanitizeDurationSec(value) {
+  const n = toFiniteNumber(value);
+  if (n === null) return 0;
+  return Math.max(0, Math.round(n));
+}
+
+function sanitizeIsoDate(value) {
+  const d = new Date(value || Date.now());
+  if (Number.isNaN(d.getTime())) return new Date().toISOString();
+  return d.toISOString();
+}
+
+function buildLogEntry(payload = {}, forcedId = '') {
+  const instrument = sanitizeInstrument(payload.instrument);
+  const user = sanitizeUser(payload.user);
+  const protocolId = sanitizeProtocolId(payload.protocolId || payload.protocol);
+  const protocolLabel = sanitizeProtocolLabel(payload.protocolLabel, protocolId);
+
+  return {
+    id: sanitizeLogId(forcedId) || sanitizeLogId(payload.id) || createLogId(),
+    date: sanitizeIsoDate(payload.date),
+    durationSec: sanitizeDurationSec(payload.durationSec),
+    user,
+    instrument,
+    protocolId,
+    protocolLabel,
+    calories: sanitizeCalories(payload.calories),
+    avgHr: sanitizeAvgHr(payload.avgHr),
+    metrics: sanitizeMetrics(instrument, payload.metrics)
+  };
+}
+
 function sanitizeMetrics(instrument, metrics) {
   const source = metrics && typeof metrics === 'object' ? metrics : {};
 
@@ -107,7 +162,8 @@ function sanitizeMetrics(instrument, metrics) {
   if (instrument === 'rowing') {
     return {
       distanceM: toFiniteNumber(source.distanceM),
-      level: clamp(toFiniteNumber(source.level), 0, 10)
+      level: clamp(toFiniteNumber(source.level), 0, 10),
+      strokeRate: clamp(toFiniteNumber(source.strokeRate), 0, 80)
     };
   }
 
@@ -187,16 +243,32 @@ class Storage {
   async getLogs() {
     if (this.mode === 'postgres' && this.pool) {
       const result = await this.pool.query(
-        `SELECT entry
+        `SELECT id, entry
          FROM workout_logs
          ORDER BY log_date DESC
          LIMIT 500;`
       );
-      return result.rows.map((row) => row.entry);
+      return result.rows.map((row) => {
+        const entry = row.entry && typeof row.entry === 'object' ? { ...row.entry } : {};
+        if (!sanitizeLogId(entry.id)) {
+          entry.id = `pg-${row.id}`;
+        }
+        return entry;
+      });
     }
 
     const db = readFileDb();
     const logs = Array.isArray(db.logs) ? db.logs : [];
+    let changed = false;
+    logs.forEach((entry) => {
+      if (!sanitizeLogId(entry && entry.id)) {
+        entry.id = createLogId();
+        changed = true;
+      }
+    });
+    if (changed) {
+      writeFileDb(db);
+    }
     return logs
       .slice(0, 500)
       .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
@@ -218,6 +290,49 @@ class Storage {
     db.logs = db.logs.slice(0, 500);
     writeFileDb(db);
   }
+
+  async updateLog(logId, entry) {
+    const safeId = sanitizeLogId(logId);
+    if (!safeId) return false;
+
+    if (this.mode === 'postgres' && this.pool) {
+      let result = null;
+      const pgMatch = /^pg-(\d+)$/.exec(safeId);
+      if (pgMatch) {
+        result = await this.pool.query(
+          `UPDATE workout_logs
+           SET log_date = $1::timestamptz,
+               user_name = $2::text,
+               instrument = $3::text,
+               entry = $4::jsonb
+           WHERE id = $5::bigint;`,
+          [entry.date, entry.user, entry.instrument, JSON.stringify(entry), Number(pgMatch[1])]
+        );
+      } else {
+        result = await this.pool.query(
+          `UPDATE workout_logs
+           SET log_date = $1::timestamptz,
+               user_name = $2::text,
+               instrument = $3::text,
+               entry = $4::jsonb
+           WHERE entry->>'id' = $5::text;`,
+          [entry.date, entry.user, entry.instrument, JSON.stringify(entry), safeId]
+        );
+      }
+      return result && result.rowCount > 0;
+    }
+
+    const db = readFileDb();
+    db.logs = Array.isArray(db.logs) ? db.logs : [];
+    const index = db.logs.findIndex((item) => sanitizeLogId(item && item.id) === safeId);
+    if (index === -1) return false;
+    db.logs[index] = entry;
+    db.logs = db.logs
+      .slice(0, 500)
+      .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+    writeFileDb(db);
+    return true;
+  }
 }
 
 const storage = new Storage();
@@ -234,22 +349,7 @@ app.get('/api/logs', async (_req, res) => {
 
 app.post('/api/logs', async (req, res) => {
   const payload = req.body || {};
-  const instrument = sanitizeInstrument(payload.instrument);
-  const user = sanitizeUser(payload.user);
-  const protocolId = sanitizeProtocolId(payload.protocolId || payload.protocol);
-  const protocolLabel = sanitizeProtocolLabel(payload.protocolLabel, protocolId);
-
-  const entry = {
-    date: payload.date || new Date().toISOString(),
-    durationSec: Math.max(0, Number(payload.durationSec || 0)),
-    user,
-    instrument,
-    protocolId,
-    protocolLabel,
-    calories: Math.max(0, Number(payload.calories || 0)),
-    avgHr: Math.max(0, Number(payload.avgHr || 0)),
-    metrics: sanitizeMetrics(instrument, payload.metrics)
-  };
+  const entry = buildLogEntry(payload);
 
   try {
     await storage.addLog(entry);
@@ -257,6 +357,29 @@ app.post('/api/logs', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to save log.' });
+  }
+});
+
+app.put('/api/logs/:id', async (req, res) => {
+  const payload = req.body || {};
+  const safeId = sanitizeLogId(req.params.id || '');
+  if (!safeId) {
+    res.status(400).json({ error: 'Invalid log id.' });
+    return;
+  }
+
+  const entry = buildLogEntry(payload, safeId);
+
+  try {
+    const updated = await storage.updateLog(safeId, entry);
+    if (!updated) {
+      res.status(404).json({ error: 'Log not found.' });
+      return;
+    }
+    res.json({ ok: true, entry, storage: storage.mode });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update log.' });
   }
 });
 

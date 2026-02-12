@@ -148,8 +148,8 @@
             </div>
             <div id="log-metrics" class="log-grid"></div>
             <div class="log-actions">
-                <button class="pill-btn ghost" onclick="closeLogModal()">Skip</button>
-                <button class="pill-btn primary" onclick="saveWorkoutLog()">Save</button>
+                <button id="log-cancel-btn" class="pill-btn ghost" onclick="closeLogModal()">Skip</button>
+                <button id="log-save-btn" class="pill-btn primary" onclick="saveWorkoutLog()">Save</button>
             </div>
             <div class="recent-logs">
                 <h4>Recent Sessions</h4>
@@ -176,6 +176,7 @@
                     <select id="stats-metric-select">
                         <option value="calories">Calories</option>
                         <option value="avgHr">Avg HR</option>
+                        <option value="strokeRate">Stroke Rate</option>
                         <option value="durationSec">Duration</option>
                         <option value="distance">Distance</option>
                     </select>
@@ -207,7 +208,7 @@
                 </section>
 
                 <section class="stats-card">
-                    <h3>Sessions by Equipment</h3>
+                    <h3 id="stats-mix-title">By Week</h3>
                     <canvas id="stats-mix-canvas" width="900" height="280"></canvas>
                 </section>
 

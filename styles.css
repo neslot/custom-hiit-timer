@@ -894,7 +894,7 @@ body.start-s3.is-workout::after {
 #workout-log {
     position: fixed;
     inset: 0;
-    z-index: 50;
+    z-index: 80;
     background: rgba(2, 6, 12, 0.74);
     display: flex;
     justify-content: center;
@@ -951,15 +951,14 @@ body.start-s3.is-workout::after {
 
 #recent-logs-list {
     margin: 0;
-    padding-left: 18px;
+    padding-left: 0;
+    list-style: none;
     max-height: 140px;
     overflow: auto;
 }
 
 #recent-logs-list li {
-    margin: 5px 0;
-    font-size: 0.8rem;
-    color: var(--text-dim);
+    margin: 0;
 }
 
 #stats-page {
@@ -1102,6 +1101,52 @@ body.home-v3 .filter-chip.active {
 .stats-sessions {
     max-height: 240px;
     overflow: auto;
+    padding-left: 0;
+    list-style: none;
+    gap: 8px;
+}
+
+.session-item {
+    border: 1px solid var(--line-soft);
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 8px 9px;
+}
+
+.session-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.session-main {
+    font-size: 0.78rem;
+    color: var(--text-main);
+    line-height: 1.35;
+}
+
+.session-sub {
+    margin-top: 4px;
+    font-size: 0.74rem;
+    color: var(--text-dim);
+    line-height: 1.35;
+}
+
+.session-edit-btn {
+    border: 1px solid var(--line-soft);
+    border-radius: 999px;
+    background: rgba(130, 156, 255, 0.22);
+    color: #d9e7ff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.session-edit-btn:hover {
+    background: rgba(130, 156, 255, 0.3);
 }
 
 #progress-container {

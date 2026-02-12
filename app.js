@@ -168,7 +168,8 @@ const instrumentMetrics = {
     ],
     rowing: [
         { key: "distanceM", label: "Distance (m)", type: "number", min: "0", step: "1", placeholder: "e.g. 1500" },
-        { key: "level", label: "Level (0-10)", type: "number", min: "0", max: "10", step: "1", placeholder: "0-10" }
+        { key: "level", label: "Level (0-10)", type: "number", min: "0", max: "10", step: "1", placeholder: "0-10" },
+        { key: "strokeRate", label: "Stroke Rate (spm)", type: "number", min: "0", max: "80", step: "1", placeholder: "e.g. 28" }
     ],
     riding: [
         { key: "distanceKm", label: "Distance (km)", type: "number", min: "0", step: "0.1", placeholder: "e.g. 16.4" },
@@ -205,6 +206,7 @@ let sessionProtocolLabel = METHODOLOGIES[currentMethodologyId].name;
 let homeVariant = 'v1';
 let startVariant = 's1';
 let logMode = 'session';
+let editingLogId = null;
 
 const statsState = {
     user: selectedUser,
@@ -250,6 +252,7 @@ const ui = {
     statsEquipmentToggles: document.getElementById('stats-equipment-toggles'),
     statsProtocolToggles: document.getElementById('stats-protocol-toggles'),
     statsLineTitle: document.getElementById('stats-line-title'),
+    statsMixTitle: document.getElementById('stats-mix-title'),
     statsSummaryList: document.getElementById('stats-summary-list'),
     statsSessionsList: document.getElementById('stats-sessions-list'),
     statsLineCanvas: document.getElementById('stats-line-canvas'),
@@ -271,7 +274,9 @@ const logUi = {
     userContext: document.getElementById('log-user-context'),
     modeContext: document.getElementById('log-mode-context'),
     protocolContext: document.getElementById('log-protocol-context'),
-    list: document.getElementById('recent-logs-list')
+    list: document.getElementById('recent-logs-list'),
+    cancelBtn: document.getElementById('log-cancel-btn'),
+    saveBtn: document.getElementById('log-save-btn')
 };
 
 function cloneSettings(settings) {
@@ -333,7 +338,7 @@ function loadPreferences() {
         pendingMethodologyId = currentMethodologyId;
         if (parsed.statsState && typeof parsed.statsState === 'object') {
             statsState.user = sanitizeUser(parsed.statsState.user || selectedUser);
-            statsState.metric = parsed.statsState.metric || statsState.metric;
+            statsState.metric = sanitizeStatsMetric(parsed.statsState.metric || statsState.metric);
             statsState.range = parsed.statsState.range === 'all' ? 'all' : Math.max(1, parseInt(parsed.statsState.range, 10) || 30);
             statsState.equipment = parsed.statsState.equipment || 'all';
             statsState.protocol = parsed.statsState.protocol || 'all';
@@ -379,6 +384,12 @@ function sanitizeHomeVariant(value) {
 function sanitizeStartVariant(value) {
     const normalized = String(value || '').toLowerCase();
     return START_VARIANTS.includes(normalized) ? normalized : 's1';
+}
+
+function sanitizeStatsMetric(value) {
+    const normalized = String(value || '').trim();
+    const allowed = ['calories', 'avgHr', 'strokeRate', 'durationSec', 'distance'];
+    return allowed.includes(normalized) ? normalized : 'calories';
 }
 
 function collectVariantTokens() {
@@ -866,6 +877,7 @@ function formatMetricSummary(instrument, metrics) {
         const parts = [];
         if (metrics.distanceM !== undefined && metrics.distanceM !== null && metrics.distanceM !== "") parts.push(`${metrics.distanceM} m`);
         if (metrics.level !== undefined && metrics.level !== null && metrics.level !== "") parts.push(`L${metrics.level}`);
+        if (metrics.strokeRate !== undefined && metrics.strokeRate !== null && metrics.strokeRate !== "") parts.push(`${metrics.strokeRate} spm`);
         return parts.join(", ");
     }
 
@@ -923,21 +935,34 @@ function parseDatetimeLocalToIso(value) {
     return date.toISOString();
 }
 
+function sanitizeLogId(value) {
+    if (typeof value !== 'string') return '';
+    return value.trim().slice(0, 80);
+}
+
+function readAvgHr(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return Math.round(n);
+}
+
 function normalizeLogEntry(entry) {
-    const user = sanitizeUser(entry.user);
-    const instrument = sanitizeInstrument(entry.instrument);
-    const protocolId = sanitizeProtocol(entry.protocolId || entry.protocol || 'unknown');
-    const protocolLabel = getProtocolLabel(protocolId, entry.protocolLabel);
+    const safe = entry && typeof entry === 'object' ? entry : {};
+    const user = sanitizeUser(safe.user);
+    const instrument = sanitizeInstrument(safe.instrument);
+    const protocolId = sanitizeProtocol(safe.protocolId || safe.protocol || 'unknown');
+    const protocolLabel = getProtocolLabel(protocolId, safe.protocolLabel);
     return {
-        ...entry,
+        ...safe,
+        id: sanitizeLogId(safe.id),
         user,
         instrument,
         protocolId,
         protocolLabel,
-        calories: Math.max(0, Number(entry.calories || 0)),
-        avgHr: Math.max(0, Number(entry.avgHr || 0)),
-        durationSec: Math.max(0, Number(entry.durationSec || 0)),
-        metrics: entry.metrics && typeof entry.metrics === 'object' ? entry.metrics : {}
+        calories: Math.max(0, Number(safe.calories || 0)),
+        avgHr: readAvgHr(safe.avgHr),
+        durationSec: Math.max(0, Number(safe.durationSec || 0)),
+        metrics: safe.metrics && typeof safe.metrics === 'object' ? safe.metrics : {}
     };
 }
 
@@ -1020,6 +1045,62 @@ function showToast(message, tone = 'good') {
     }, 1900);
 }
 
+function getAvgHrValue(entry) {
+    return readAvgHr(entry && entry.avgHr);
+}
+
+function formatAvgHrText(entry) {
+    const avgHr = getAvgHrValue(entry);
+    return avgHr ? `${avgHr} bpm` : "--";
+}
+
+function createSessionListItem(entry, options = {}) {
+    const {
+        showUser = false,
+        showProtocol = true,
+        showMetrics = true,
+        showDuration = true,
+        allowEdit = false
+    } = options;
+
+    const instrument = sanitizeInstrument(entry.instrument || 'running');
+    const protocolText = getProtocolLabel(entry.protocolId, entry.protocolLabel);
+    const metricSummary = formatMetricSummary(instrument, entry.metrics || {});
+    const durationText = showDuration ? ` | ${formatDuration(Number(entry.durationSec) || 0)}` : '';
+    const whoText = showUser ? `${sanitizeUser(entry.user)} | ` : '';
+
+    const li = document.createElement('li');
+    li.className = 'session-item';
+
+    const topRow = document.createElement('div');
+    topRow.className = 'session-row';
+    const main = document.createElement('span');
+    main.className = 'session-main';
+    main.innerText = `${whoText}${formatEntryDate(entry.date)} | ${capitalize(instrument)}${durationText}`;
+    topRow.appendChild(main);
+
+    const entryId = sanitizeLogId(entry.id);
+    if (allowEdit && entryId) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'session-edit-btn';
+        btn.innerText = 'Edit';
+        btn.addEventListener('click', () => beginEditLog(entry));
+        topRow.appendChild(btn);
+    }
+
+    const sub = document.createElement('div');
+    sub.className = 'session-sub';
+    const segments = [`${Number(entry.calories) || 0} cal`, `HR ${formatAvgHrText(entry)}`];
+    if (showProtocol) segments.push(protocolText);
+    if (showMetrics && metricSummary) segments.push(metricSummary);
+    sub.innerText = segments.join(' | ');
+
+    li.appendChild(topRow);
+    li.appendChild(sub);
+    return li;
+}
+
 function renderHomeStats(logs) {
     if (!ui.homeKpis || !ui.homeList) return;
 
@@ -1029,10 +1110,12 @@ function renderHomeStats(logs) {
 
     const totalSessions = rangeLogs.length;
     const totalMinutes = rangeLogs.reduce((sum, entry) => sum + ((Number(entry.durationSec) || 0) / 60), 0);
-    const hrEntries = rangeLogs.filter((entry) => Number(entry.avgHr) > 0);
+    const hrEntries = rangeLogs
+        .map((entry) => getAvgHrValue(entry))
+        .filter((value) => Number.isFinite(value));
     const streak = computeStreakDays(userLogs);
     const avgHr = hrEntries.length
-        ? Math.round(hrEntries.reduce((sum, entry) => sum + Number(entry.avgHr), 0) / hrEntries.length)
+        ? Math.round(hrEntries.reduce((sum, value) => sum + value, 0) / hrEntries.length)
         : 0;
 
     ui.homeKpis.innerHTML = `
@@ -1056,7 +1139,7 @@ function renderHomeStats(logs) {
         const metricSummary = formatMetricSummary(instrument, entry.metrics || {});
         const calories = Number(entry.calories) || 0;
         const duration = formatDuration(Number(entry.durationSec) || 0);
-        const hrText = Number(entry.avgHr) > 0 ? `${Number(entry.avgHr)} bpm` : "--";
+        const hrText = formatAvgHrText(entry);
         const protocolText = getProtocolLabel(entry.protocolId, entry.protocolLabel);
 
         const li = document.createElement('li');
@@ -1082,14 +1165,13 @@ function renderLogs(logs) {
     }
 
     logs.slice(0, 10).forEach((entry) => {
-        const li = document.createElement('li');
-        const user = sanitizeUser(entry.user || USERS[0]);
-        const instrument = sanitizeInstrument(entry.instrument || 'running');
-        const date = new Date(entry.date).toLocaleDateString();
-        const metricSummary = formatMetricSummary(instrument, entry.metrics || {});
-        const protocolText = getProtocolLabel(entry.protocolId, entry.protocolLabel);
-
-        li.innerText = `${date} - ${user} - ${capitalize(instrument)} - ${entry.calories || 0} cal - ${entry.avgHr || 0} avg HR - ${protocolText}${metricSummary ? ` - ${metricSummary}` : ""}`;
+        const li = createSessionListItem(entry, {
+            showUser: true,
+            showProtocol: true,
+            showMetrics: true,
+            showDuration: true,
+            allowEdit: true
+        });
         logUi.list.appendChild(li);
     });
 }
@@ -1224,7 +1306,12 @@ function getStatsFilteredLogs() {
 
 function getMetricValue(entry, metric) {
     if (metric === 'calories') return Number(entry.calories) || 0;
-    if (metric === 'avgHr') return Number(entry.avgHr) || 0;
+    if (metric === 'avgHr') return getAvgHrValue(entry);
+    if (metric === 'strokeRate') {
+        if (sanitizeInstrument(entry.instrument) !== 'rowing') return null;
+        const value = Number(entry.metrics && entry.metrics.strokeRate);
+        return Number.isFinite(value) && value > 0 ? value : null;
+    }
     if (metric === 'durationSec') return (Number(entry.durationSec) || 0) / 60;
     if (metric === 'distance') return getDistanceKm(entry);
     return 0;
@@ -1233,6 +1320,7 @@ function getMetricValue(entry, metric) {
 function getMetricLabel(metric) {
     if (metric === 'calories') return 'Calories';
     if (metric === 'avgHr') return 'Avg Heart Rate';
+    if (metric === 'strokeRate') return 'Stroke Rate (spm)';
     if (metric === 'durationSec') return 'Duration (min)';
     if (metric === 'distance') return 'Distance (km)';
     return 'Metric';
@@ -1330,20 +1418,54 @@ function drawLineChart(canvas, entries, metric) {
     ctx.fillText(`${minY.toFixed(1)}`, 6, yScale(minY) + 4);
 }
 
-function drawBarChart(canvas, entries) {
-    const counts = { running: 0, rowing: 0, riding: 0, spin: 0 };
+function toWeekStartKey(value) {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    const weekStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const day = (weekStart.getDay() + 6) % 7;
+    weekStart.setDate(weekStart.getDate() - day);
+    return toDayKey(weekStart);
+}
+
+function formatWeekLabel(key) {
+    const d = new Date(`${key}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return key;
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function aggregateMetricByWeek(entries, metric) {
+    const buckets = new Map();
     entries.forEach((entry) => {
-        const instrument = sanitizeInstrument(entry.instrument);
-        if (counts[instrument] !== undefined) counts[instrument] += 1;
+        const weekKey = toWeekStartKey(entry.date);
+        const value = getMetricValue(entry, metric);
+        if (!weekKey || !Number.isFinite(value)) return;
+        if (!buckets.has(weekKey)) {
+            buckets.set(weekKey, { total: 0, count: 0 });
+        }
+        const bucket = buckets.get(weekKey);
+        bucket.total += value;
+        bucket.count += 1;
     });
 
-    const labels = Object.keys(counts);
-    const values = labels.map((label) => counts[label]);
-    const total = values.reduce((sum, v) => sum + v, 0);
-    if (!total) {
-        drawNoData(canvas, 'No sessions for filters');
+    const averageMetric = metric === 'avgHr' || metric === 'strokeRate';
+    return Array.from(buckets.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([weekKey, bucket]) => ({
+            key: weekKey,
+            label: formatWeekLabel(weekKey),
+            value: averageMetric && bucket.count ? bucket.total / bucket.count : bucket.total
+        }));
+}
+
+function drawWeeklyMetricChart(canvas, entries, metric) {
+    const weekly = aggregateMetricByWeek(entries, metric);
+    if (!weekly.length) {
+        drawNoData(canvas, 'No weekly data for filters');
         return;
     }
+
+    const labels = weekly.map((item) => item.label);
+    const values = weekly.map((item) => item.value);
 
     const { ctx, width, height } = setupCanvas(canvas);
     const left = 40;
@@ -1374,8 +1496,8 @@ function drawBarChart(canvas, entries) {
         ctx.fillStyle = 'rgba(230,239,255,0.75)';
         ctx.textAlign = 'center';
         ctx.font = '11px Manrope';
-        ctx.fillText(String(val), x + (w / 2), y - 6);
-        ctx.fillText(capitalize(label), x + (w / 2), height - 8);
+        ctx.fillText(`${val.toFixed(1)}`, x + (w / 2), y - 6);
+        ctx.fillText(label, x + (w / 2), height - 8);
     });
 }
 
@@ -1390,8 +1512,12 @@ function renderStatsSummary(entries) {
     }
     const total = entries.length;
     const totalCalories = entries.reduce((sum, e) => sum + (Number(e.calories) || 0), 0);
-    const avgHrEntries = entries.filter((e) => Number(e.avgHr) > 0);
-    const avgHr = avgHrEntries.length ? Math.round(avgHrEntries.reduce((sum, e) => sum + Number(e.avgHr), 0) / avgHrEntries.length) : 0;
+    const avgHrValues = entries
+        .map((entry) => getAvgHrValue(entry))
+        .filter((value) => Number.isFinite(value));
+    const avgHr = avgHrValues.length
+        ? Math.round(avgHrValues.reduce((sum, value) => sum + value, 0) / avgHrValues.length)
+        : 0;
     const totalDistance = entries.reduce((sum, e) => sum + getDistanceKm(e), 0);
     const totalMinutes = entries.reduce((sum, e) => sum + ((Number(e.durationSec) || 0) / 60), 0);
 
@@ -1418,16 +1544,20 @@ function renderStatsSessions(entries) {
         return;
     }
     entries.slice().reverse().slice(0, 40).forEach((entry) => {
-        const li = document.createElement('li');
-        const date = new Date(entry.date).toLocaleDateString();
-        const protocolText = getProtocolLabel(entry.protocolId, entry.protocolLabel);
-        li.innerText = `${date} - ${capitalize(sanitizeInstrument(entry.instrument))} - ${entry.calories || 0} cal - ${entry.avgHr || '--'} bpm - ${protocolText}`;
+        const li = createSessionListItem(entry, {
+            showUser: false,
+            showProtocol: true,
+            showMetrics: true,
+            showDuration: true,
+            allowEdit: true
+        });
         ui.statsSessionsList.appendChild(li);
     });
 }
 
 function renderStatsPage() {
     if (!ui.statsPage) return;
+    statsState.metric = sanitizeStatsMetric(statsState.metric);
     if (ui.statsUserSelect) ui.statsUserSelect.value = statsState.user;
     if (ui.statsMetricSelect) ui.statsMetricSelect.value = statsState.metric;
     if (ui.statsRangeSelect) ui.statsRangeSelect.value = String(statsState.range);
@@ -1436,9 +1566,11 @@ function renderStatsPage() {
     renderStatsProtocolToggles(cachedLogs);
 
     const filtered = getStatsFilteredLogs();
-    if (ui.statsLineTitle) ui.statsLineTitle.innerText = `${getMetricLabel(statsState.metric)} Trend`;
+    const metricLabel = getMetricLabel(statsState.metric);
+    if (ui.statsLineTitle) ui.statsLineTitle.innerText = `${metricLabel} Over Time`;
+    if (ui.statsMixTitle) ui.statsMixTitle.innerText = `${metricLabel} by Week`;
     if (ui.statsLineCanvas) drawLineChart(ui.statsLineCanvas, filtered, statsState.metric);
-    if (ui.statsMixCanvas) drawBarChart(ui.statsMixCanvas, filtered);
+    if (ui.statsMixCanvas) drawWeeklyMetricChart(ui.statsMixCanvas, filtered, statsState.metric);
     renderStatsSummary(filtered);
     renderStatsSessions(filtered);
 }
@@ -1496,29 +1628,76 @@ function collectLogMetrics() {
     return data;
 }
 
-function showLogModal(mode = 'session') {
-    logMode = mode === 'manual' ? 'manual' : 'session';
+function syncLogActionButtons() {
+    if (!logUi.saveBtn || !logUi.cancelBtn) return;
+    const editing = !!editingLogId;
+    logUi.saveBtn.innerText = editing ? 'Update' : 'Save';
+    logUi.cancelBtn.innerText = logMode === 'session' && !editing ? 'Skip' : 'Cancel';
+}
+
+function showLogModal(mode = 'session', editEntry = null) {
+    const hasEditEntry = !!(editEntry && typeof editEntry === 'object');
+    logMode = hasEditEntry ? 'edit' : (mode === 'manual' ? 'manual' : 'session');
+    editingLogId = hasEditEntry ? sanitizeLogId(editEntry.id) : null;
     logUi.modal.classList.remove('hidden');
-    logUi.instrument.value = 'running';
-    logUi.calories.value = '';
-    logUi.avgHr.value = '';
-    const defaultDate = toDatetimeLocalValue(new Date());
-    if (logUi.dateInput) {
-        logUi.dateInput.value = defaultDate;
+
+    if (hasEditEntry) {
+        selectedUser = sanitizeUser(editEntry.user || selectedUser);
+        statsState.user = selectedUser;
+        sessionProtocolId = sanitizeProtocol(editEntry.protocolId || editEntry.protocol || 'unknown');
+        sessionProtocolLabel = getProtocolLabel(sessionProtocolId, editEntry.protocolLabel);
+
+        logUi.instrument.value = sanitizeInstrument(editEntry.instrument || 'running');
+        logUi.calories.value = Number(editEntry.calories) > 0 ? String(Number(editEntry.calories)) : '';
+        const avgHrValue = getAvgHrValue(editEntry);
+        logUi.avgHr.value = avgHrValue ? String(avgHrValue) : '';
+        if (logUi.dateInput) {
+            logUi.dateInput.value = toDatetimeLocalValue(editEntry.date || new Date());
+        }
+        if (logUi.durationMin) {
+            const entryMinutes = Math.max(1, Math.round((Number(editEntry.durationSec) || 0) / 60));
+            logUi.durationMin.value = entryMinutes;
+        }
+        if (logUi.modeContext) {
+            logUi.modeContext.innerText = "Mode: Edit Session";
+        }
+        syncUserUi();
+        if (logUi.protocolContext) {
+            logUi.protocolContext.innerText = `Protocol: ${sessionProtocolLabel}`;
+        }
+        renderLogMetrics(logUi.instrument.value, editEntry.metrics || {});
+    } else {
+        logUi.instrument.value = 'running';
+        logUi.calories.value = '';
+        logUi.avgHr.value = '';
+        const defaultDate = toDatetimeLocalValue(new Date());
+        if (logUi.dateInput) {
+            logUi.dateInput.value = defaultDate;
+        }
+        if (logUi.durationMin) {
+            const sessionMinutes = Math.max(1, Math.round((elapsed || totalTime) / 60));
+            logUi.durationMin.value = sessionMinutes;
+        }
+        if (logUi.modeContext) {
+            logUi.modeContext.innerText = logMode === 'manual' ? "Mode: Custom Log" : "Mode: Session Summary";
+        }
+        syncUserUi();
+        if (logUi.protocolContext) {
+            logUi.protocolContext.innerText = `Protocol: ${sessionProtocolLabel}`;
+        }
+        renderLogMetrics(logUi.instrument.value);
     }
-    if (logUi.durationMin) {
-        const sessionMinutes = Math.max(1, Math.round((elapsed || totalTime) / 60));
-        logUi.durationMin.value = logMode === 'manual' ? sessionMinutes : sessionMinutes;
-    }
-    if (logUi.modeContext) {
-        logUi.modeContext.innerText = logMode === 'manual' ? "Mode: Custom Log" : "Mode: Session Summary";
-    }
-    syncUserUi();
-    if (logUi.protocolContext) {
-        logUi.protocolContext.innerText = `Protocol: ${sessionProtocolLabel}`;
-    }
-    renderLogMetrics(logUi.instrument.value);
+
+    syncLogActionButtons();
     renderLogs(cachedLogs);
+}
+
+function beginEditLog(entry) {
+    if (!entry || !sanitizeLogId(entry.id)) {
+        showToast('Cannot edit this session', 'bad');
+        return;
+    }
+    showLogModal('edit', entry);
 }
 
 function openCustomLog() {
@@ -1533,6 +1712,11 @@ function openCustomLog() {
 
 function closeLogModal() {
     logUi.modal.classList.add('hidden');
+    editingLogId = null;
+    if (logMode === 'edit') {
+        logMode = 'session';
+    }
+    syncLogActionButtons();
 }
 
 async function saveWorkoutLog() {
@@ -1554,31 +1738,37 @@ async function saveWorkoutLog() {
         user: sanitizeUser(selectedUser),
         instrument,
         calories: parseInt(logUi.calories.value || '0', 10),
-        avgHr: parseInt(logUi.avgHr.value || '0', 10),
+        avgHr: readAvgHr(logUi.avgHr.value),
         protocolId: sanitizeProtocol(sessionProtocolId),
         protocolLabel: sessionProtocolLabel,
         metrics: collectLogMetrics()
     };
+    if (editingLogId) {
+        entry.id = editingLogId;
+    }
 
     try {
-        const res = await fetch(`${API_BASE}/api/logs`, {
-            method: 'POST',
+        const endpoint = editingLogId
+            ? `${API_BASE}/api/logs/${encodeURIComponent(editingLogId)}`
+            : `${API_BASE}/api/logs`;
+        const res = await fetch(endpoint, {
+            method: editingLogId ? 'PUT' : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(entry)
         });
-        if (!res.ok) throw new Error('Failed to save log');
+        if (!res.ok) throw new Error(editingLogId ? 'Failed to update log' : 'Failed to save log');
     } catch (err) {
         console.error(err);
-        showToast('Save failed', 'bad');
+        showToast(editingLogId ? 'Update failed' : 'Save failed', 'bad');
         return;
     }
 
-    if (logMode === 'session') {
+    if (logMode === 'session' && !editingLogId) {
         sessionLogged = true;
     }
     await refreshLogs();
     await refreshStorageMode();
-    showToast('Session saved');
+    showToast(editingLogId ? 'Session updated' : 'Session saved');
     persistPreferences();
     closeLogModal();
 }
@@ -1672,7 +1862,7 @@ if (ui.statsUserSelect) {
 
 if (ui.statsMetricSelect) {
     ui.statsMetricSelect.addEventListener('change', (e) => {
-        statsState.metric = e.target.value;
+        statsState.metric = sanitizeStatsMetric(e.target.value);
         renderStatsPage();
         persistPreferences();
     });
